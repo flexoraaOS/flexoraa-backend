@@ -1,93 +1,53 @@
-// Webhook Signature Verification Middleware
-// Prevents replay attacks with nonce storage
-const crypto = require('crypto');
+// Webhook Security Middleware
+// Prevents replay attacks using Redis-backed nonce storage
+const { redis } = require('./rateLimiter');
 const logger = require('../utils/logger');
-const db = require('../config/database');
+
+const NONCE_TTL = 15 * 60; // 15 minutes in seconds
 
 /**
- * Verify WhatsApp webhook signature
- */
-const verifyWhatsAppSignature = (req, res, next) => {
-    const signature = req.headers['x-hub-signature-256'];
-
-    if (!signature) {
-        logger.warn('WhatsApp webhook: missing signature');
-        return res.status(401).json({ error: 'No signature provided' });
-    }
-
-    // TODO Phase 2: Real signature verification
-    // const expectedSignature = crypto
-    //   .createHmac('sha256', WEBHOOK_SECRET)
-    //   .update(JSON.stringify(req.body))
-    //   .digest('hex');
-
-    // if (signature !== `sha256=${expectedSignature}`) {
-    //   logger.warn({ signature }, 'WhatsApp webhook: invalid signature');
-    //   return res.status(401).json({ error: 'Invalid signature' });
-    // }
-
-    // Phase 1: Stub mode - always pass
-    logger.debug('WhatsApp signature verified (stub mode)');
-    next();
-};
-
-/**
- * Prevent replay attacks with nonce checking
+ * Prevent Replay Attacks
+ * Checks for unique request ID or signature in Redis
  */
 const preventReplay = async (req, res, next) => {
+    // Identify unique request identifier
+    // Priority: X-Hub-Signature (WhatsApp/FB) > X-Request-ID > X-Twilio-Signature
+    const nonce = req.headers['x-hub-signature'] ||
+        req.headers['x-request-id'] ||
+        req.headers['x-twilio-signature'];
+
+    if (!nonce) {
+        // If no unique ID is present, we can't prevent replay effectively without inspecting body
+        // For strict security, we might reject, but for now we log warning and proceed 
+        // (or generate a hash of the body if available)
+        logger.warn({ ip: req.ip, path: req.path }, 'Webhook missing unique signature/ID for replay protection');
+        return next();
+    }
+
+    const redisKey = `nonce:${nonce}`;
+
     try {
-        const requestId = req.headers['x-request-id'];
-        const nonce = req.headers['x-nonce'];
+        // Check if nonce exists
+        const exists = await redis.get(redisKey);
 
-        if (!requestId) {
-            return res.status(400).json({ error: 'X-Request-Id header required' });
+        if (exists) {
+            logger.warn({ ip: req.ip, nonce }, 'Replay attack detected');
+            return res.status(409).json({ error: 'Duplicate request detected' });
         }
 
-        // Check if request_id or nonce already exists
-        const result = await db.query(
-            `SELECT check_duplicate_webhook_request($1, $2)`,
-            [requestId, nonce]
-        );
-
-        if (result.rows[0].check_duplicate_webhook_request) {
-            logger.warn({ requestId, nonce }, 'Duplicate webhook request detected');
-            return res.status(409).json({ error: 'Duplicate request' });
-        }
-
-        // Store request in webhook_raw table
-        const source = req.headers['x-webhook-source'] || 'unknown';
-        await db.query(
-            `INSERT INTO webhook_raw (source, request_id, nonce, headers, body, raw_body, ip_address)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-            [
-                source,
-                requestId,
-                nonce,
-                JSON.stringify(req.headers),
-                JSON.stringify(req.body),
-                JSON.stringify(req.body),
-                req.ip,
-            ]
-        );
-
+        // Store nonce with TTL
+        await redis.set(redisKey, '1', 'EX', NONCE_TTL);
         next();
     } catch (error) {
-        logger.error({ err: error }, 'Replay prevention check failed');
-        return res.status(500).json({ error: 'Internal server error' });
+        logger.error({ err: error }, 'Redis error in replay prevention');
+        // Fail open or closed? 
+        // Fail open (allow request) to prevent DoS if Redis is down, but log error.
+        // For high security, fail closed (next(error)).
+        // We'll fail open for availability but log critical error.
+        next();
     }
-};
-
-/**
- * Verify KlickTipp signature
- */
-const verifyKlickTippSignature = (req, res, next) => {
-    // TODO Phase 2: Implement KlickTipp signature verification
-    logger.debug('KlickTipp signature verified (stub mode)');
-    next();
 };
 
 module.exports = {
-    verifyWhatsAppSignature,
-    verifyKlickTippSignature,
-    preventReplay,
+    preventReplay
 };

@@ -2,6 +2,7 @@
 // Handles campaigns, leads, and chat operations
 const db = require('../../config/database');
 const logger = require('../../utils/logger');
+const encryption = require('../../utils/encryption');
 
 class SupabaseService {
     /**
@@ -43,18 +44,32 @@ class SupabaseService {
 
         const params = campaignId ? [userId, campaignId] : [userId];
         const result = await db.query(query, params);
-        return result.rows;
+
+        // Decrypt PII
+        return result.rows.map(lead => ({
+            ...lead,
+            phone_number: encryption.decrypt(lead.phone_number)
+        }));
     }
 
     /**
-     * Get lead by phone number
+     * Get lead by phone number (using blind index hash)
      */
     async getLeadByPhone(phoneNumber) {
+        // Hash the phone number for lookup
+        const phoneHash = encryption.hash(phoneNumber);
+
         const result = await db.query(
-            `SELECT * FROM leads WHERE phone_number = $1 LIMIT 1`,
-            [phoneNumber]
+            `SELECT * FROM leads WHERE phone_hash = $1 LIMIT 1`,
+            [phoneHash]
         );
-        return result.rows[0];
+
+        if (!result.rows[0]) return null;
+
+        // Decrypt PII before returning
+        const lead = result.rows[0];
+        lead.phone_number = encryption.decrypt(lead.phone_number);
+        return lead;
     }
 
     /**
@@ -63,15 +78,23 @@ class SupabaseService {
     async createLead(data) {
         const { userId, campaignId, tenantId, phoneNumber, name, metadata = {} } = data;
 
+        // Encrypt PII
+        const encryptedPhone = encryption.encrypt(phoneNumber);
+        const phoneHash = encryption.hash(phoneNumber);
+
         const result = await db.query(
-            `INSERT INTO leads (user_id, campaign_id, tenant_id, phone_number, name, metadata)
-       VALUES ($1, $2, $3, $4, $5, $6)
+            `INSERT INTO leads (user_id, campaign_id, tenant_id, phone_number, phone_hash, name, metadata)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
-            [userId, campaignId, tenantId, phoneNumber, name, JSON.stringify(metadata)]
+            [userId, campaignId, tenantId, encryptedPhone, phoneHash, name, JSON.stringify(metadata)]
         );
 
         logger.info({ leadId: result.rows[0].id }, 'Lead created');
-        return result.rows[0];
+
+        // Return decrypted
+        const lead = result.rows[0];
+        lead.phone_number = encryption.decrypt(lead.phone_number);
+        return lead;
     }
 
     /**
@@ -83,9 +106,20 @@ class SupabaseService {
         let paramCount = 1;
 
         Object.entries(updates).forEach(([key, value]) => {
-            fields.push(`${key} = $${paramCount}`);
-            values.push(value);
-            paramCount++;
+            // Handle PII updates if necessary (though usually phone doesn't change)
+            if (key === 'phone_number') {
+                fields.push(`phone_number = $${paramCount}`);
+                values.push(encryption.encrypt(value));
+                paramCount++;
+
+                fields.push(`phone_hash = $${paramCount}`);
+                values.push(encryption.hash(value));
+                paramCount++;
+            } else {
+                fields.push(`${key} = $${paramCount}`);
+                values.push(value);
+                paramCount++;
+            }
         });
 
         values.push(leadId);
@@ -95,7 +129,11 @@ class SupabaseService {
             values
         );
 
-        return result.rows[0];
+        if (!result.rows[0]) return null;
+
+        const lead = result.rows[0];
+        lead.phone_number = encryption.decrypt(lead.phone_number);
+        return lead;
     }
 
     /**
@@ -104,12 +142,19 @@ class SupabaseService {
     async recordConsent(data) {
         const { tenantId, phoneNumber, email, consentType, consentStatus, consentMethod, ipAddress, rawPayload } = data;
 
+        // Encrypt PII
+        const encryptedPhone = encryption.encrypt(phoneNumber);
+        const phoneHash = encryption.hash(phoneNumber);
+
+        const encryptedEmail = email ? encryption.encrypt(email) : null;
+        const emailHash = email ? encryption.hash(email) : null;
+
         try {
             const result = await db.query(
-                `INSERT INTO consent_log (tenant_id, phone_number, email, consent_type, consent_status, consent_method, ip_address, metadata)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                `INSERT INTO consent_log (tenant_id, phone_number, phone_hash, email, email_hash, consent_type, consent_status, consent_method, ip_address, metadata)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
          RETURNING id`,
-                [tenantId, phoneNumber, email, consentType, consentStatus, consentMethod, ipAddress, JSON.stringify({ rawPayload })]
+                [tenantId, encryptedPhone, phoneHash, encryptedEmail, emailHash, consentType, consentStatus, consentMethod, ipAddress, JSON.stringify({ rawPayload })]
             );
 
             logger.info({ consentId: result.rows[0].id, consentType, consentStatus }, 'Consent recorded');

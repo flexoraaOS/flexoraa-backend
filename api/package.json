@@ -46,6 +46,7 @@
     "ioredis": "^5.3.2",
     "jsonwebtoken": "^9.0.2",
     "nodemailer": "^6.9.8",
+    "opossum": "^5.0.1",
     "pg": "^8.11.3",
     "pg-pool": "^3.6.1",
     "pino": "^8.17.2",

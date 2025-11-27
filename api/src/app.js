@@ -100,7 +100,20 @@ app.use(globalLimiter);
 app.use('/health', healthRouter);
 app.use('/api/webhooks', webhooksRouter);
 app.use('/api/campaigns', campaignsRouter);
+const leadsRouter = require('./routes/leads');
+const adminRouter = require('./routes/admin');
+const ipWhitelist = require('./middleware/ipWhitelist');
+
+// ... (existing code)
+
+// Routes
+app.use('/health', healthRouter);
+app.use('/api/webhooks', webhooksRouter);
+app.use('/api/campaigns', campaignsRouter);
 app.use('/api/leads', leadsRouter);
+
+// Admin Routes (Protected)
+app.use('/api/admin', ipWhitelist(), adminRouter);
 
 // Metrics endpoint
 app.get('/metrics', async (req, res) => {

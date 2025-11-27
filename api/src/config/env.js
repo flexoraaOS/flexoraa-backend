@@ -25,7 +25,12 @@ const envSchema = z.object({
   // JWT
   JWT_SECRET: z.string().min(32),
   JWT_EXPIRY: z.string().default('1h'),
+  JWT_EXPIRY: z.string().default('1h'),
   JWT_REFRESH_EXPIRY: z.string().default('7d'),
+
+  // Security
+  ENCRYPTION_KEY: z.string().min(32).optional(), // 32 bytes hex encoded
+  ADMIN_ALLOWLIST_IPS: z.string().optional(), // Comma-separated IPs
 
   // Rate Limiting
   RATE_LIMIT_WINDOW_MS: z.string().transform(Number).default('900000'),
