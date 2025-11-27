@@ -1,7 +1,9 @@
-// WhatsApp Business Service (STUB for Phase 1)
-// Phase 2: Real WhatsApp Cloud API integration
-const logger = require('../../utils/logger');
+// WhatsApp Business Service
+// Real implementation using Meta Cloud API (Graph API v17.0+)
+const axios = require('axios');
+const crypto = require('crypto');
 const config = require('../../config/env');
+const logger = require('../../utils/logger');
 
 class WhatsAppService {
     constructor() {
@@ -14,13 +16,17 @@ class WhatsAppService {
         };
         this.sandboxMode = config.WHATSAPP_SANDBOX_MODE !== 'false';
         this.approvedTemplates = (config.WHATSAPP_APPROVED_TEMPLATES || '').split(',');
+        this.apiVersion = 'v17.0';
+        this.baseUrl = 'https://graph.facebook.com';
     }
 
     /**
-     * Send text message (STUBBED)
+     * Send text message
      */
     async sendTextMessage(to, message, phoneNumberId = 'primary') {
-        if (!this.enabled) {
+        const phoneId = this.phoneNumbers[phoneNumberId] || this.phoneNumbers.primary;
+
+        if (!this.enabled || !this.accessToken || !phoneId) {
             logger.info({ to, message: message.substring(0, 50) }, 'WhatsApp send (stub)');
             return {
                 success: true,
@@ -30,29 +36,53 @@ class WhatsAppService {
             };
         }
 
-        // TODO Phase 2: Real API call
-        // const response = await axios.post(`https://graph.facebook.com/v18.0/${phoneNumberId}/messages`, {
-        //   messaging_product: 'whatsapp',
-        //   to,
-        //   text: { body: message },
-        // }, {
-        //   headers: { Authorization: `Bearer ${this.accessToken}` },
-        // });
+        try {
+            const response = await axios.post(
+                `${this.baseUrl}/${this.apiVersion}/${phoneId}/messages`,
+                {
+                    messaging_product: 'whatsapp',
+                    recipient_type: 'individual',
+                    to: to,
+                    type: 'text',
+                    text: { body: message },
+                },
+                {
+                    headers: {
+                        Authorization: `Bearer ${this.accessToken}`,
+                        'Content-Type': 'application/json',
+                    },
+                }
+            );
 
-        return { success: true, messageId: 'stub_msg', mode: 'stub' };
+            return {
+                success: true,
+                messageId: response.data.messages[0].id,
+                status: 'sent',
+                mode: 'real',
+            };
+        } catch (error) {
+            logger.error({
+                err: error.response?.data || error.message,
+                to,
+                phoneId
+            }, 'WhatsApp send failed');
+            throw error;
+        }
     }
 
     /**
-     * Send template message with parameters (STUBBED)
+     * Send template message with parameters
      */
     async sendTemplateMessage(to, templateName, parameters, phoneNumberId = 'primary') {
+        const phoneId = this.phoneNumbers[phoneNumberId] || this.phoneNumbers.primary;
+
         // Template governance check
         if (this.sandboxMode && !this.approvedTemplates.includes(templateName)) {
             logger.warn({ templateName }, 'Template not approved for sandbox sending');
             throw new Error(`Template ${templateName} not approved. Sandbox mode active.`);
         }
 
-        if (!this.enabled) {
+        if (!this.enabled || !this.accessToken || !phoneId) {
             logger.info({ to, templateName }, 'WhatsApp template send (stub)');
             return {
                 success: true,
@@ -62,46 +92,86 @@ class WhatsAppService {
             };
         }
 
-        // TODO Phase 2: Real template send
-        return { success: true, messageId: 'stub_template', mode: 'stub' };
-    }
+        try {
+            // Construct components from parameters
+            const components = [];
 
-    /**
-     * Send and wait for response (polling stub)
-     */
-    async sendAndWait(to, message, timeoutMinutes = 45) {
-        const sendResult = await this.sendTextMessage(to, message);
+            if (parameters.bodyParameters && parameters.bodyParameters.length > 0) {
+                components.push({
+                    type: 'body',
+                    parameters: parameters.bodyParameters.map(p => ({
+                        type: 'text',
+                        text: p.text,
+                    })),
+                });
+            }
 
-        if (!this.enabled) {
-            logger.info({ messageId: sendResult.messageId, timeout: timeoutMinutes }, 'Send and wait (stub)');
+            if (parameters.buttonParameters && parameters.buttonParameters.length > 0) {
+                parameters.buttonParameters.forEach((btn, index) => {
+                    if (btn.type === 'url') {
+                        components.push({
+                            type: 'button',
+                            sub_type: 'url',
+                            index: index, // Button index (0-based)
+                            parameters: [{ type: 'text', text: btn.text }], // Dynamic URL suffix
+                        });
+                    }
+                });
+            }
+
+            const response = await axios.post(
+                `${this.baseUrl}/${this.apiVersion}/${phoneId}/messages`,
+                {
+                    messaging_product: 'whatsapp',
+                    recipient_type: 'individual',
+                    to: to,
+                    type: 'template',
+                    template: {
+                        name: templateName,
+                        language: { code: parameters.language || 'de' },
+                        components: components,
+                    },
+                },
+                {
+                    headers: {
+                        Authorization: `Bearer ${this.accessToken}`,
+                        'Content-Type': 'application/json',
+                    },
+                }
+            );
+
             return {
-                ...sendResult,
-                waitingForResponse: true,
-                expiresAt: new Date(Date.now() + timeoutMinutes * 60 * 1000),
+                success: true,
+                messageId: response.data.messages[0].id,
+                mode: 'real',
             };
+        } catch (error) {
+            logger.error({
+                err: error.response?.data || error.message,
+                to,
+                templateName
+            }, 'WhatsApp template send failed');
+            throw error;
         }
-
-        // TODO Phase 2: Implement webhook response correlation
-        return sendResult;
     }
 
     /**
-     * Verify webhook signature
+     * Verify webhook signature (HMAC SHA256)
      */
     verifySignature(payload, signature) {
-        // TODO Phase 2: Implement X-Hub-Signature-256 verification
-        if (!this.enabled) {
-            return true; // Stub mode
-        }
+        if (!config.WEBHOOK_SECRET) return true; // Skip if no secret configured (dev)
 
-        // const crypto = require('crypto');
-        // const expectedSignature = crypto
-        //   .createHmac('sha256', WEBHOOK_SECRET)
-        //   .update(payload)
-        //   .digest('hex');
-        // return signature === `sha256=${expectedSignature}`;
+        const expectedSignature = crypto
+            .createHmac('sha256', config.WEBHOOK_SECRET)
+            .update(payload)
+            .digest('hex');
 
-        return true;
+        // Constant time comparison to prevent timing attacks
+        const signatureBuffer = Buffer.from(signature.replace('sha256=', ''), 'utf8');
+        const expectedBuffer = Buffer.from(expectedSignature, 'utf8');
+
+        if (signatureBuffer.length !== expectedBuffer.length) return false;
+        return crypto.timingSafeEqual(signatureBuffer, expectedBuffer);
     }
 
     /**

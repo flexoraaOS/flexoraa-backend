@@ -1,111 +1,169 @@
-// Google Gemini AI Service (STUB for Phase 1)
-// Phase 2: Replace with real Gemini API calls
-const logger = require('../../utils/logger');
+// Google Gemini AI Service
+// Real implementation using @google/generative-ai
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 const config = require('../../config/env');
+const logger = require('../../utils/logger');
 
 class GeminiService {
     constructor() {
         this.enabled = config.ENABLE_AI_SERVICES;
         this.apiKey = config.GEMINI_API_KEY;
-        this.tokenUsage = new Map(); // tenant_id -> token count today
-        this.dailyLimit = config.GEMINI_DAILY_TOKEN_LIMIT || 100000;
-        this.alertThreshold = config.GEMINI_ALERT_THRESHOLD || 80000;
+        this.client = null;
+        this.models = {};
+
+        // Token usage tracking (in-memory for now, could be Redis)
+        this.tokenUsage = new Map(); // tenantId -> { used: number, limit: number }
+
+        if (this.enabled && this.apiKey) {
+            try {
+                const genAI = new GoogleGenerativeAI(this.apiKey);
+                this.client = genAI;
+                this.models = {
+                    text: genAI.getGenerativeModel({ model: 'gemini-pro' }),
+                    vision: genAI.getGenerativeModel({ model: 'gemini-pro-vision' }),
+                    embedding: genAI.getGenerativeModel({ model: 'embedding-001' }),
+                };
+                logger.info('✨ Gemini AI service initialized');
+            } catch (error) {
+                logger.error({ err: error }, 'Failed to initialize Gemini client');
+            }
+        } else {
+            logger.warn('Gemini AI service disabled or missing API key');
+        }
     }
 
     /**
-     * Generate chat completion (STUBBED)
-     * @param {string} prompt - The prompt text
-     * @param {Object} options - Generation options
-     * @returns {Promise<Object>} - { text, tokenCount }
+     * Generate text from prompt
+     * @param {string} prompt - Input text
+     * @param {Object} options - { tenantId, temperature, maxTokens }
      */
     async generateText(prompt, options = {}) {
-        if (!this.enabled) {
-            logger.info('Gemini service disabled (stub mode)');
+        const { tenantId = 'default', temperature = 0.7, maxTokens = 500 } = options;
+
+        if (!this.enabled || !this.client) {
+            logger.info({ tenantId }, 'Gemini generateText (stub)');
             return {
-                text: '[STUB] AI-generated response for: ' + prompt.substring(0, 50) + '...',
-                tokenCount: 50,
-                model: 'stub',
+                text: `[STUB] AI response to: "${prompt.substring(0, 20)}..."`,
+                tokenCount: 10,
+                model: 'stub-model',
             };
         }
 
-        // TODO Phase 2: Real Gemini API call
-        // const response = await axios.post('https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent', {
-        //   contents: [{ parts: [{ text: prompt }] }],
-        // }, {
-        //   headers: { 'x-goog-api-key': this.apiKey },
-        // });
+        try {
+            // Check limits
+            this._checkLimits(tenantId);
 
-        // Stub response
-        const stubResponse = {
-            text: `[STUB] Generated marketing copy: "Transform your business with data-driven insights! Contact us to learn more."`,
-            tokenCount: Math.floor(Math.random() * 100) + 50,
-            model: 'gemini-pro-stub',
-        };
-
-        // Track token usage
-        this.trackTokenUsage(options.tenantId, stubResponse.tokenCount);
-
-        return stubResponse;
-    }
-
-    /**
-     * Generate structured output (STUBBED)
-     * @param {string} prompt - The prompt
-     * @param {Object} schema - Expected JSON schema
-     * @returns {Promise<Object>} - Parsed JSON output
-     */
-    async generateStructured(prompt, schema, options = {}) {
-        if (!this.enabled) {
-            return {
-                phone_number: '+918927665759',
-                output: '[STUB] AI-generated marketing message',
-                company: 'Demo Company',
+            const model = this.models.text;
+            const generationConfig = {
+                temperature,
+                maxOutputTokens: maxTokens,
             };
-        }
 
-        // Stub structured response
-        return {
-            phone_number: options.phoneNumber || '+910000000000',
-            output: '[STUB] Turn insights into income! Discover how our services can help.',
-            company: options.companyName || 'Flexoraa',
-        };
+            const result = await model.generateContent({
+                contents: [{ role: 'user', parts: [{ text: prompt }] }],
+                generationConfig,
+            });
+
+            const response = await result.response;
+            const text = response.text();
+
+            // Estimate tokens (Gemini doesn't always return exact count in response)
+            // Rule of thumb: 1 token ≈ 4 chars
+            const inputTokens = Math.ceil(prompt.length / 4);
+            const outputTokens = Math.ceil(text.length / 4);
+            const totalTokens = inputTokens + outputTokens;
+
+            // Track usage
+            this._trackUsage(tenantId, totalTokens);
+
+            return {
+                text,
+                tokenCount: totalTokens,
+                model: 'gemini-pro',
+            };
+        } catch (error) {
+            logger.error({ err: error, tenantId }, 'Gemini generation failed');
+            throw error;
+        }
     }
 
     /**
-     * Track token usage per tenant (for cost controls)
+     * Generate structured JSON output
+     * @param {string} prompt - Base prompt
+     * @param {Object} schema - JSON schema (not strictly enforced by API yet, handled via prompt engineering)
+     * @param {Object} context - { tenantId, ... }
      */
-    trackTokenUsage(tenantId, tokens) {
-        if (!tenantId) return;
+    async generateStructured(prompt, schema, context = {}) {
+        const { tenantId = 'default' } = context;
 
-        const today = new Date().toISOString().split('T')[0];
-        const key = `${tenantId}:${today}`;
+        const jsonPrompt = `${prompt}
 
-        const current = this.tokenUsage.get(key) || 0;
-        const newTotal = current + tokens;
-        this.tokenUsage.set(key, newTotal);
+IMPORTANT: You must return ONLY valid JSON. Do not include markdown formatting like \`\`\`json.
+Ensure the response follows this structure:
+${JSON.stringify(schema, null, 2)}
+`;
 
-        // Check thresholds
-        if (newTotal >= this.dailyLimit) {
-            logger.warn({ tenantId, tokens: newTotal }, 'Gemini daily token limit exceeded');
-            // TODO: Trigger alert to Slack
-        } else if (newTotal >= this.alertThreshold) {
-            logger.warn({ tenantId, tokens: newTotal }, 'Gemini token usage approaching limit');
+        try {
+            const result = await this.generateText(jsonPrompt, { tenantId, temperature: 0.2 });
+
+            // Clean up response (remove markdown if present)
+            let cleanText = result.text.replace(/```json/g, '').replace(/```/g, '').trim();
+
+            return JSON.parse(cleanText);
+        } catch (error) {
+            logger.error({ err: error, text: result?.text }, 'Failed to parse structured AI response');
+            throw new Error('AI failed to generate valid JSON');
         }
-
-        logger.debug({ tenantId, tokens, total: newTotal }, 'Gemini token usage tracked');
     }
 
     /**
-     * Get token usage stats for a tenant
+     * Generate embeddings for RAG
+     * @param {string} text 
+     */
+    async getEmbeddings(text) {
+        if (!this.enabled || !this.client) {
+            return new Array(768).fill(0.1); // Stub vector
+        }
+
+        try {
+            const model = this.models.embedding;
+            const result = await model.embedContent(text);
+            return result.embedding.values;
+        } catch (error) {
+            logger.error({ err: error }, 'Embedding generation failed');
+            throw error;
+        }
+    }
+
+    /**
+     * Track token usage
+     */
+    _trackUsage(tenantId, tokens) {
+        const current = this.tokenUsage.get(tenantId) || { used: 0, limit: 100000 };
+        current.used += tokens;
+        this.tokenUsage.set(tenantId, current);
+
+        // Log if approaching limit
+        if (current.used > current.limit * 0.9) {
+            logger.warn({ tenantId, used: current.used, limit: current.limit }, 'Tenant approaching AI token limit');
+        }
+    }
+
+    /**
+     * Check if tenant has exceeded limits
+     */
+    _checkLimits(tenantId) {
+        const usage = this.tokenUsage.get(tenantId);
+        if (usage && usage.used >= usage.limit) {
+            throw new Error(`AI token limit exceeded for tenant ${tenantId}`);
+        }
+    }
+
+    /**
+     * Get current usage stats
      */
     getTokenUsage(tenantId) {
-        const today = new Date().toISOString().split('T')[0];
-        const key = `${tenantId}:${today}`;
-        return {
-            used: this.tokenUsage.get(key) || 0,
-            limit: this.dailyLimit,
-            remaining: this.dailyLimit - (this.tokenUsage.get(key) || 0),
-        };
+        return this.tokenUsage.get(tenantId) || { used: 0, limit: 100000 };
     }
 }
 

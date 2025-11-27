@@ -1,135 +1,147 @@
-// Pinecone Vector Store Service (STUB for Phase 1)
-// Phase 2: Real Pinecone integration with embeddings
-const logger = require('../../utils/logger');
+// Pinecone Vector Store Service
+// Real implementation using @pinecone-database/pinecone
+const { Pinecone } = require('@pinecone-database/pinecone');
 const config = require('../../config/env');
+const logger = require('../../utils/logger');
+const geminiService = require('./geminiService');
 
 class PineconeService {
     constructor() {
         this.enabled = config.ENABLE_PINECONE_RAG;
         this.apiKey = config.PINECONE_API_KEY;
-        this.indexName = config.PINECONE_INDEX_NAME || 'flexoraa-rag';
-        this.inMemoryStore = new Map(); // Stub: in-memory vectors
+        this.indexName = config.PINECONE_INDEX;
+        this.client = null;
+        this.index = null;
+
+        if (this.enabled && this.apiKey) {
+            try {
+                this.client = new Pinecone({ apiKey: this.apiKey });
+                this.index = this.client.index(this.indexName);
+                logger.info({ index: this.indexName }, '🌲 Pinecone service initialized');
+            } catch (error) {
+                logger.error({ err: error }, 'Failed to initialize Pinecone client');
+            }
+        } else {
+            logger.warn('Pinecone service disabled or missing API key');
+        }
     }
 
     /**
-     * Initialize Pinecone index (STUBBED)
+     * Initialize/Check connection (for health check)
      */
     async initialize() {
-        if (!this.enabled) {
-            logger.info('Pinecone disabled (stub mode)');
-            return { success: true, mode: 'stub' };
+        if (!this.enabled || !this.client) return false;
+        try {
+            // Lightweight check - describe index stats
+            await this.index.describeIndexStats();
+            return true;
+        } catch (error) {
+            logger.error({ err: error }, 'Pinecone health check failed');
+            throw error;
         }
-
-        // TODO Phase 2: Real Pinecone initialization
-        // const pinecone = new Pinecone({ apiKey: this.apiKey });
-        // const index = pinecone.Index(this.indexName);
-
-        logger.info({ indexName: this.indexName }, 'Pinecone stub initialized');
-        return { success: true, mode: 'stub', indexName: this.indexName };
     }
 
     /**
-     * Upsert vectors (seed knowledge base)
+     * Upsert vectors (store knowledge)
+     * @param {Array} documents - [{ id, text, metadata }]
      */
-    async upsert(vectors) {
-        if (!this.enabled) {
-            logger.info({ count: vectors.length }, 'Pinecone upsert (stub)');
-            vectors.forEach(v => this.inMemoryStore.set(v.id, v));
-            return { upsertedCount: vectors.length };
+    async upsert(documents) {
+        if (!this.enabled || !this.index) {
+            logger.info({ count: documents.length }, 'Pinecone upsert (stub)');
+            return;
         }
 
-        // TODO Phase 2: Real upsert
-        // await index.upsert(vectors);
-        return { upsertedCount: vectors.length };
+        try {
+            const vectors = [];
+
+            // Generate embeddings for all docs
+            for (const doc of documents) {
+                const embedding = await geminiService.getEmbeddings(doc.text);
+                vectors.push({
+                    id: doc.id,
+                    values: embedding,
+                    metadata: {
+                        ...doc.metadata,
+                        text: doc.text, // Store text in metadata for retrieval
+                    },
+                });
+            }
+
+            // Batch upsert (Pinecone handles batching, but good to be explicit for large sets)
+            await this.index.upsert(vectors);
+            logger.info({ count: vectors.length }, 'Upserted vectors to Pinecone');
+        } catch (error) {
+            logger.error({ err: error }, 'Pinecone upsert failed');
+            throw error;
+        }
     }
 
     /**
-     * Query for similar vectors (RAG retrieval)
-     * @param {Array<number>} queryVector - Embedding vector
+     * Query knowledge base (RAG)
+     * @param {Array} queryEmbedding - Vector to search for (optional, can generate from text)
      * @param {number} topK - Number of results
-     * @returns {Promise<Array>} - Matching documents
+     * @param {Object} filter - Metadata filter (e.g. { tenantId: '...' })
+     * @param {string} queryText - Text to search (if embedding not provided)
      */
-    async query(queryVector, topK = 5, filter = {}) {
-        if (!this.enabled) {
-            // Stub: return sample knowledge base results
+    async query(queryEmbedding, topK = 3, filter = {}, queryText = null) {
+        if (!this.enabled || !this.index) {
+            // Stub response
             return {
                 matches: [
                     {
-                        id: 'doc-1',
-                        score: 0.92,
-                        metadata: {
-                            text: '[STUB] Our research analyst services help businesses turn data into actionable insights.',
-                            source: 'product_brochure.pdf',
-                        },
-                    },
-                    {
-                        id: 'doc-2',
-                        score: 0.88,
-                        metadata: {
-                            text: '[STUB] We offer flexible pricing packages tailored to your specific needs.',
-                            source: 'pricing_guide.pdf',
-                        },
+                        id: 'stub_doc_1',
+                        score: 0.95,
+                        metadata: { text: 'This is a stub knowledge base article about Flexoraa.' },
                     },
                 ],
             };
         }
 
-        // TODO Phase 2: Real query
-        // const results = await index.query({ vector: queryVector, topK, filter });
-        return { matches: [] };
+        try {
+            let vector = queryEmbedding;
+
+            // Generate embedding if text provided
+            if ((!vector || vector.length === 0) && queryText) {
+                vector = await geminiService.getEmbeddings(queryText);
+            }
+
+            if (!vector || vector.length === 0) {
+                throw new Error('No query vector or text provided');
+            }
+
+            const result = await this.index.query({
+                vector,
+                topK,
+                filter,
+                includeMetadata: true,
+            });
+
+            return result;
+        } catch (error) {
+            logger.error({ err: error }, 'Pinecone query failed');
+            throw error;
+        }
     }
 
     /**
-     * Seed product knowledge base (for testing)
+     * Delete vectors by ID
      */
-    async seedKnowledgeBase() {
-        const sampleDocs = [
-            {
-                id: 'product-overview',
-                values: Array(768).fill(0).map(() => Math.random()), // Stub embedding
-                metadata: {
-                    text: 'Flexoraa provides AI-powered lead management and WhatsApp automation services.',
-                    category: 'overview',
-                },
-            },
-            {
-                id: 'pricing-info',
-                values: Array(768).fill(0).map(() => Math.random()),
-                metadata: {
-                    text: 'Our pricing starts at $99/month with custom enterprise packages available.',
-                    category: 'pricing',
-                },
-            },
-        ];
-
-        await this.upsert(sampleDocs);
-        logger.info({ count: sampleDocs.length }, 'Knowledge base seeded');
-        return { seeded: sampleDocs.length };
+    async delete(ids) {
+        if (!this.enabled || !this.index) return;
+        await this.index.deleteMany(ids);
     }
 
     /**
-     * Test retrieval precision (acceptance criteria)
+     * Delete all vectors for a tenant
      */
-    async testRetrieval() {
-        // Sample query: "What are your prices?"
-        const queryEmbedding = Array(768).fill(0).map(() => Math.random());
-        const results = await this.query(queryEmbedding, 3);
-
-        // Check if pricing document is in top results
-        const hasPricing = results.matches.some(m =>
-            m.metadata.text.toLowerCase().includes('pricing') ||
-            m.metadata.category === 'pricing'
-        );
-
-        const precision = hasPricing ? 0.85 : 0.65; // Stub precision
-
-        logger.info({ precision, results: results.matches.length }, 'Pinecone retrieval test');
-
-        return {
-            success: precision >= 0.80,
-            precision,
-            matches: results.matches.length,
-        };
+    async deleteByTenant(tenantId) {
+        if (!this.enabled || !this.index) return;
+        // Delete by metadata filter (requires Pinecone serverless or pod-based with metadata support)
+        try {
+            await this.index.deleteMany({ tenantId: { $eq: tenantId } });
+        } catch (error) {
+            logger.error({ err: error, tenantId }, 'Failed to delete tenant vectors');
+        }
     }
 }
 

@@ -41,9 +41,17 @@ const envSchema = z.object({
   // External Services (optional in Phase 1)
   GEMINI_API_KEY: z.string().optional(),
   PINECONE_API_KEY: z.string().optional(),
+  PINECONE_INDEX: z.string().default('flexoraa-knowledge-base'),
   WHATSAPP_ACCESS_TOKEN: z.string().optional(),
+  WHATSAPP_PHONE_NUMBER_ID_PRIMARY: z.string().optional(),
+  WHATSAPP_PHONE_NUMBER_ID_SECONDARY: z.string().optional(),
+  WHATSAPP_PHONE_NUMBER_ID_SUPPORT: z.string().optional(),
   TWILIO_ACCOUNT_SID: z.string().optional(),
+  TWILIO_AUTH_TOKEN: z.string().optional(),
+  TWILIO_FROM_NUMBER: z.string().optional(),
+  TWILIO_TWIML_URL: z.string().optional(),
   KLICKTIPP_USERNAME: z.string().optional(),
+  KLICKTIPP_PASSWORD: z.string().optional(),
 });
 
 // Parse and validate
