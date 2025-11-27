@@ -88,21 +88,6 @@ class GeminiService {
     }
 
     /**
-     * Generate structured JSON output
-     * @param {string} prompt - Base prompt
-     * @param {Object} schema - JSON schema (not strictly enforced by API yet, handled via prompt engineering)
-     * @param {Object} context - { tenantId, ... }
-     */
-    async generateStructured(prompt, schema, context = {}) {
-        const { tenantId = 'default' } = context;
-
-        const jsonPrompt = `${prompt}
-
-IMPORTANT: You must return ONLY valid JSON. Do not include markdown formatting like \`\`\`json.
-Ensure the response follows this structure:
-${JSON.stringify(schema, null, 2)}
-`;
-
         try {
             const result = await this.generateText(jsonPrompt, { tenantId, temperature: 0.2 });
 
