@@ -1,0 +1,12 @@
+# Grafana Provisioning - Dashboards
+apiVersion: 1
+
+providers:
+  - name: 'Flexoraa Dashboards'
+    folder: ''
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards
