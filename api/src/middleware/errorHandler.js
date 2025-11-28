@@ -11,7 +11,7 @@ const errorHandler = (err, req, res, next) => {
         method: req.method,
         path: req.path,
         body: req.body,
-        user: req.user?.id,
+        user: req.user?.id
     }, 'Request error');
 
     // Determine status code
@@ -20,7 +20,7 @@ const errorHandler = (err, req, res, next) => {
     // Send response
     res.status(statusCode).json({
         error: err.message || 'Internal server error',
-        ...(process.env.NODE_ENV !== 'production' && { stack: err.stack }),
+        ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
     });
 };
 
@@ -30,7 +30,7 @@ const errorHandler = (err, req, res, next) => {
 const notFound = (req, res) => {
     res.status(404).json({
         error: 'Not Found',
-        message: `Route ${req.method} ${req.path} not found`,
+        message: `Route ${req.method} ${req.path} not found`
     });
 };
 
@@ -46,5 +46,5 @@ const asyncHandler = (fn) => {
 module.exports = {
     errorHandler,
     notFound,
-    asyncHandler,
+    asyncHandler
 };

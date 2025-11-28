@@ -12,7 +12,7 @@ app.use(helmet({
             defaultSrc: ["'self'"],
             styleSrc: ["'self'", "'unsafe-inline'"],
             scriptSrc: ["'self'"],
-            imgSrc: ["'self'", "data:", "https:"]
+            imgSrc: ["'self'", 'data:', 'https:']
         }
     },
     hsts: {
@@ -63,6 +63,8 @@ const authRoutes = require('./routes/auth');
 app.use('/api/leads', leadsRoutes);
 app.use('/api/webhooks', webhooksRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/subscriptions', require('./routes/subscriptions'));
+app.use('/api/analytics', require('./routes/analytics'));
 
 // Health check with circuit breaker status
 app.get('/health', async (req, res) => {

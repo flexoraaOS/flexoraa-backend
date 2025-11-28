@@ -10,7 +10,7 @@ const pool = new Pool({
     ssl: process.env.POSTGRES_SSL === 'true' ? { rejectUnauthorized: false } : false,
     max: 20,
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 2000,
+    connectionTimeoutMillis: 2000
 });
 
 pool.on('error', (err) => {
@@ -20,10 +20,10 @@ pool.on('error', (err) => {
 
 const db = {
     query: (text, params) => pool.query(text, params),
-    getClient: () => pool.connect(),
+    getClient: () => pool.connect()
 };
 
 module.exports = {
     db,
-    pool,
+    pool
 };

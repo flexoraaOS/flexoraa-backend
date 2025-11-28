@@ -11,9 +11,9 @@ class WhatsAppService {
             baseURL: 'https://graph.facebook.com/v18.0',
             headers: {
                 'Authorization': `Bearer ${this.accessToken}`,
-                'Content-Type': 'application/json',
+                'Content-Type': 'application/json'
             },
-            timeout: 10000,
+            timeout: 10000
         });
     }
 
@@ -85,7 +85,7 @@ class WhatsAppService {
                 messaging_product: 'whatsapp',
                 to: recipientPhone,
                 type: 'text',
-                text: { body: message },
+                text: { body: message }
             });
             return response.data;
         } catch (error) {
@@ -106,8 +106,8 @@ class WhatsAppService {
                 template: {
                     name: templateName,
                     language: { code: 'de' },
-                    components,
-                },
+                    components
+                }
             });
             return response.data;
         } catch (error) {

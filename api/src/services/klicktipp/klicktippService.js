@@ -23,7 +23,7 @@ class KlickTippService {
         try {
             const response = await axios.post(`${this.apiBase}/account/login`, {
                 username: this.username,
-                password: this.password,
+                password: this.password
             });
 
             // Extract session cookie
@@ -55,20 +55,20 @@ class KlickTippService {
                     listid: listId,
                     email: email,
                     fields: {
-                        fieldPhone: phoneNumber, // Mapping depends on KlickTipp field names
-                    },
+                        fieldPhone: phoneNumber // Mapping depends on KlickTipp field names
+                    }
                 },
                 {
                     headers: {
-                        Cookie: this.sessionCookie,
-                    },
+                        Cookie: this.sessionCookie
+                    }
                 }
             );
 
             return {
                 success: true,
                 contactId: response.data.id,
-                mode: 'real',
+                mode: 'real'
             };
         } catch (error) {
             logger.error({ err: error.message, email }, 'KlickTipp subscribe failed');
@@ -92,12 +92,12 @@ class KlickTippService {
                 `${this.apiBase}/subscriber/tag`,
                 {
                     email: email,
-                    tagid: tagId,
+                    tagid: tagId
                 },
                 {
                     headers: {
-                        Cookie: this.sessionCookie,
-                    },
+                        Cookie: this.sessionCookie
+                    }
                 }
             );
 
@@ -127,8 +127,8 @@ class KlickTippService {
             customFields: {
                 product: body.CustomField217373,
                 name: body.CustomField217511,
-                linkEnding: body.CustomField218042,
-            },
+                linkEnding: body.CustomField218042
+            }
         };
     }
 }

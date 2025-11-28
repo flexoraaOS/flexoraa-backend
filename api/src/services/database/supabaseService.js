@@ -28,7 +28,7 @@ class SupabaseService {
      */
     async getCampaign(campaignId) {
         const result = await db.query(
-            `SELECT * FROM campaigns WHERE id = $1`,
+            'SELECT * FROM campaigns WHERE id = $1',
             [campaignId]
         );
         return result.rows[0];
@@ -39,8 +39,8 @@ class SupabaseService {
      */
     async getLeads(userId, campaignId = null) {
         const query = campaignId
-            ? `SELECT * FROM leads WHERE user_id = $1 AND campaign_id = $2 ORDER BY created_at DESC`
-            : `SELECT * FROM leads WHERE user_id = $1 ORDER BY created_at DESC`;
+            ? 'SELECT * FROM leads WHERE user_id = $1 AND campaign_id = $2 ORDER BY created_at DESC'
+            : 'SELECT * FROM leads WHERE user_id = $1 ORDER BY created_at DESC';
 
         const params = campaignId ? [userId, campaignId] : [userId];
         const result = await db.query(query, params);
@@ -59,7 +59,7 @@ class SupabaseService {
         const phoneHash = encryption.hash(phoneNumber);
 
         const result = await db.query(
-            `SELECT * FROM leads WHERE phone_hash = $1 LIMIT 1`,
+            'SELECT * FROM leads WHERE phone_hash = $1 LIMIT 1',
             [phoneHash]
         );
 
@@ -75,7 +75,7 @@ class SupabaseService {
      */
     async getLeadById(leadId) {
         const result = await db.query(
-            `SELECT * FROM leads WHERE id = $1 LIMIT 1`,
+            'SELECT * FROM leads WHERE id = $1 LIMIT 1',
             [leadId]
         );
 
@@ -199,7 +199,7 @@ class SupabaseService {
      */
     async assignNextLead(sdrUserId, tenantId) {
         const result = await db.query(
-            `SELECT * FROM assign_next_lead_to_sdr($1, $2)`,
+            'SELECT * FROM assign_next_lead_to_sdr($1, $2)',
             [sdrUserId, tenantId]
         );
 
@@ -209,7 +209,7 @@ class SupabaseService {
 
         return {
             assignmentId: result.rows[0].assignment_id,
-            leadId: result.rows[0].lead_id,
+            leadId: result.rows[0].lead_id
         };
     }
 
@@ -218,7 +218,7 @@ class SupabaseService {
      */
     async deleteLead(leadId) {
         const result = await db.query(
-            `DELETE FROM leads WHERE id = $1 RETURNING id`,
+            'DELETE FROM leads WHERE id = $1 RETURNING id',
             [leadId]
         );
 
@@ -280,7 +280,7 @@ class SupabaseService {
      */
     async deleteCampaign(campaignId) {
         const result = await db.query(
-            `DELETE FROM campaigns WHERE id = $1 RETURNING id`,
+            'DELETE FROM campaigns WHERE id = $1 RETURNING id',
             [campaignId]
         );
 
@@ -290,6 +290,48 @@ class SupabaseService {
 
         logger.info({ campaignId }, 'Campaign deleted');
         return result.rows[0].id;
+    }
+    /**
+     * Bulk update leads
+     */
+    async bulkUpdateLeads(leadIds, updates) {
+        const fields = [];
+        const values = [];
+        let paramCount = 1;
+
+        Object.entries(updates).forEach(([key, value]) => {
+            fields.push(`${key} = $${paramCount}`);
+            values.push(value);
+            paramCount++;
+        });
+
+        // Add leadIds as the last parameter
+        values.push(leadIds);
+
+        const result = await db.query(
+            `UPDATE leads SET ${fields.join(', ')} 
+             WHERE id = ANY($${paramCount}) 
+             RETURNING id`,
+            values
+        );
+
+        logger.info({ count: result.rowCount }, 'Bulk leads updated');
+        return result.rowCount;
+    }
+
+    /**
+     * Bulk assign leads to campaign
+     */
+    async bulkAssignLeads(leadIds, campaignId) {
+        const result = await db.query(
+            `UPDATE leads SET campaign_id = $1 
+             WHERE id = ANY($2) 
+             RETURNING id`,
+            [campaignId, leadIds]
+        );
+
+        logger.info({ count: result.rowCount, campaignId }, 'Bulk leads assigned');
+        return result.rowCount;
     }
 }
 

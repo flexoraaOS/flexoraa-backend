@@ -52,7 +52,7 @@ Respond naturally and helpfully.`;
 
         // Generate AI response
         const aiResponse = await geminiService.generateText(prompt, {
-            tenantId: lead.tenant_id,
+            tenantId: lead.tenant_id
         });
 
         // Save to chat memory
@@ -65,7 +65,7 @@ Respond naturally and helpfully.`;
         // Update lead status
         await supabaseService.updateLead(lead.id, {
             status: 'contacted',
-            last_contacted_at: new Date(),
+            last_contacted_at: new Date()
         });
 
         // Track metrics
@@ -75,7 +75,7 @@ Respond naturally and helpfully.`;
             received: true,
             workflow: 'lead_conversion_bot',
             leadId: lead.id,
-            aiResponse: aiResponse.text,
+            aiResponse: aiResponse.text
         });
     } catch (error) {
         logger.error({ err: error }, 'Lead conversion bot failed');
@@ -109,7 +109,7 @@ const triggerCampaign = async (req, res) => {
                     .replace('{{description}}', campaign.description);
 
                 const aiMessage = await geminiService.generateText(prompt, {
-                    tenantId: campaign.tenant_id,
+                    tenantId: campaign.tenant_id
                 });
 
                 // Send WhatsApp message
@@ -127,14 +127,14 @@ const triggerCampaign = async (req, res) => {
                 results.push({
                     leadId: lead.id,
                     status: 'sent',
-                    message: aiMessage.text,
+                    message: aiMessage.text
                 });
             } catch (error) {
                 logger.error({ err: error, leadId: lead.id }, 'Failed to send to lead');
                 results.push({
                     leadId: lead.id,
                     status: 'failed',
-                    error: error.message,
+                    error: error.message
                 });
             }
         }
@@ -142,7 +142,7 @@ const triggerCampaign = async (req, res) => {
         res.json({
             campaignId,
             totalLeads: leads.length,
-            results,
+            results
         });
     } catch (error) {
         logger.error({ err: error }, 'Campaign trigger failed');
@@ -152,5 +152,5 @@ const triggerCampaign = async (req, res) => {
 
 module.exports = {
     handleIncomingMessage,
-    triggerCampaign,
+    triggerCampaign
 };

@@ -20,7 +20,7 @@ router.get('/stats', asyncHandler(async (req, res) => {
         leads: parseInt(leadsCount.rows[0].count),
         campaigns: parseInt(campaignsCount.rows[0].count),
         uptime: process.uptime(),
-        memory: process.memoryUsage(),
+        memory: process.memoryUsage()
     });
 }));
 
@@ -66,6 +66,53 @@ router.get('/toggles/ai-status', asyncHandler(async (req, res) => {
         aiEnabled: !disabled,
         emergencyMode: !!disabled
     });
+}));
+
+/**
+ * POST /api/admin/users/invite
+ * Invite a new user via email
+ */
+router.post('/users/invite', asyncHandler(async (req, res) => {
+    const { email, role } = req.body;
+    const emailService = require('../services/emailService');
+    const crypto = require('crypto');
+
+    // 1. Check if user exists
+    const existing = await db.query('SELECT id FROM users WHERE email = $1', [email]);
+    if (existing.rows.length > 0) {
+        return res.status(400).json({ error: 'User already exists' });
+    }
+
+    // 2. Generate invite token
+    const token = crypto.randomBytes(32).toString('hex');
+    const inviteLink = `${process.env.DOMAIN || 'http://localhost:3000'}/auth/accept-invite?token=${token}`;
+
+    // 3. Store invite (assuming an invites table exists, or just log for now)
+    // For MVP, we'll just send the link. In production, store in 'invites' table.
+    // await db.query('INSERT INTO invites ...');
+
+    // 4. Send Email
+    await emailService.sendInvitation(email, inviteLink);
+
+    res.json({ success: true, message: 'Invitation sent', inviteLink }); // Return link for testing
+}));
+
+/**
+ * PATCH /api/admin/users/:id/role
+ * Update user role
+ */
+router.patch('/users/:id/role', asyncHandler(async (req, res) => {
+    const { role } = req.body;
+    const { id } = req.params;
+
+    if (!['admin', 'sdr', 'manager', 'user'].includes(role)) {
+        return res.status(400).json({ error: 'Invalid role' });
+    }
+
+    await db.query('UPDATE users SET role = $1 WHERE id = $2', [role, id]);
+
+    logger.info({ adminId: req.user.id, targetUserId: id, newRole: role }, 'User role updated');
+    res.json({ success: true });
 }));
 
 module.exports = router;

@@ -24,7 +24,7 @@ const ipWhitelist = (allowedIps = null) => {
         let clientIp = req.ip;
 
         // Handle IPv6 mapped IPv4
-        if (clientIp.substr(0, 7) == "::ffff:") {
+        if (clientIp.substr(0, 7) == '::ffff:') {
             clientIp = clientIp.substr(7);
         }
 

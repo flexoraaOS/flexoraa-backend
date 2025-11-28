@@ -12,7 +12,7 @@ class WhatsAppService {
         this.phoneNumbers = {
             primary: config.WHATSAPP_PHONE_NUMBER_ID_PRIMARY,
             support: config.WHATSAPP_PHONE_NUMBER_ID_SUPPORT,
-            secondary: config.WHATSAPP_PHONE_NUMBER_ID_SECONDARY,
+            secondary: config.WHATSAPP_PHONE_NUMBER_ID_SECONDARY
         };
         this.sandboxMode = config.WHATSAPP_SANDBOX_MODE !== 'false';
         this.approvedTemplates = (config.WHATSAPP_APPROVED_TEMPLATES || '').split(',');
@@ -32,7 +32,7 @@ class WhatsAppService {
                 success: true,
                 messageId: 'stub_msg_' + Date.now(),
                 status: 'sent',
-                mode: 'stub',
+                mode: 'stub'
             };
         }
 
@@ -44,13 +44,13 @@ class WhatsAppService {
                     recipient_type: 'individual',
                     to: to,
                     type: 'text',
-                    text: { body: message },
+                    text: { body: message }
                 },
                 {
                     headers: {
                         Authorization: `Bearer ${this.accessToken}`,
-                        'Content-Type': 'application/json',
-                    },
+                        'Content-Type': 'application/json'
+                    }
                 }
             );
 
@@ -58,7 +58,7 @@ class WhatsAppService {
                 success: true,
                 messageId: response.data.messages[0].id,
                 status: 'sent',
-                mode: 'real',
+                mode: 'real'
             };
         } catch (error) {
             logger.error({
@@ -88,7 +88,7 @@ class WhatsAppService {
                 success: true,
                 messageId: 'stub_template_' + Date.now(),
                 template: templateName,
-                mode: 'stub',
+                mode: 'stub'
             };
         }
 
@@ -101,8 +101,8 @@ class WhatsAppService {
                     type: 'body',
                     parameters: parameters.bodyParameters.map(p => ({
                         type: 'text',
-                        text: p.text,
-                    })),
+                        text: p.text
+                    }))
                 });
             }
 
@@ -113,7 +113,7 @@ class WhatsAppService {
                             type: 'button',
                             sub_type: 'url',
                             index: index, // Button index (0-based)
-                            parameters: [{ type: 'text', text: btn.text }], // Dynamic URL suffix
+                            parameters: [{ type: 'text', text: btn.text }] // Dynamic URL suffix
                         });
                     }
                 });
@@ -129,21 +129,21 @@ class WhatsAppService {
                     template: {
                         name: templateName,
                         language: { code: parameters.language || 'de' },
-                        components: components,
-                    },
+                        components: components
+                    }
                 },
                 {
                     headers: {
                         Authorization: `Bearer ${this.accessToken}`,
-                        'Content-Type': 'application/json',
-                    },
+                        'Content-Type': 'application/json'
+                    }
                 }
             );
 
             return {
                 success: true,
                 messageId: response.data.messages[0].id,
-                mode: 'real',
+                mode: 'real'
             };
         } catch (error) {
             logger.error({
@@ -196,7 +196,7 @@ class WhatsAppService {
                 timestamp: message.timestamp,
                 type: message.type,
                 text: message.text?.body || '',
-                contact: contacts[0],
+                contact: contacts[0]
             };
         } catch (error) {
             logger.error({ err: error }, 'Failed to parse WhatsApp webhook');

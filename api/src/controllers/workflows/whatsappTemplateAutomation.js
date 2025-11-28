@@ -24,11 +24,11 @@ const handleKlickTippTrigger = async (req, res) => {
             bodyParameters: [
                 { text: firstName },
                 { text: customFields.product },
-                { text: customFields.name },
+                { text: customFields.name }
             ],
             buttonParameters: [
-                { type: 'url', text: customFields.linkEnding },
-            ],
+                { type: 'url', text: customFields.linkEnding }
+            ]
         };
 
         await whatsappService.sendTemplateMessage(
@@ -45,7 +45,7 @@ const handleKlickTippTrigger = async (req, res) => {
             received: true,
             workflow: 'whatsapp_template_automation',
             templateSent: templateName,
-            phoneNumber: formattedPhone,
+            phoneNumber: formattedPhone
         });
     } catch (error) {
         logger.error({ err: error }, 'WhatsApp template automation failed');
@@ -79,7 +79,7 @@ const handleOptOut = async (req, res) => {
             consentStatus: 'revoked',
             consentMethod: 'whatsapp_stop_keyword',
             ipAddress: req.ip,
-            rawPayload: req.body,
+            rawPayload: req.body
         });
 
         // Subscribe to opt-out list in KlickTipp
@@ -94,7 +94,7 @@ const handleOptOut = async (req, res) => {
             phoneNumber,
             autoResponderTemplate,
             {
-                bodyParameters: [{ text: contactName }],
+                bodyParameters: [{ text: contactName }]
             },
             'support' // Use support account
         );
@@ -106,7 +106,7 @@ const handleOptOut = async (req, res) => {
             received: true,
             workflow: 'whatsapp_optout',
             action: 'opted_out',
-            phoneNumber,
+            phoneNumber
         });
     } catch (error) {
         logger.error({ err: error }, 'Opt-out handling failed');
@@ -117,5 +117,5 @@ const handleOptOut = async (req, res) => {
 
 module.exports = {
     handleKlickTippTrigger,
-    handleOptOut,
+    handleOptOut
 };

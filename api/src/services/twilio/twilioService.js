@@ -44,7 +44,7 @@ class TwilioService {
                 success: true,
                 callSid: 'stub_call_' + Date.now(),
                 status: 'initiated',
-                mode: 'stub',
+                mode: 'stub'
             };
         }
 
@@ -54,7 +54,7 @@ class TwilioService {
                 to: toNumber,
                 from: this.fromNumber,
                 statusCallback: `${config.API_URL}/api/webhooks/twilio/status`,
-                statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
+                statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed']
             });
 
             logger.info({ callSid: call.sid, toNumber }, 'Twilio call initiated');
@@ -63,7 +63,7 @@ class TwilioService {
                 success: true,
                 callSid: call.sid,
                 status: call.status,
-                mode: 'real',
+                mode: 'real'
             };
         } catch (error) {
             logger.error({ err: error, toNumber }, 'Twilio call failed');
@@ -112,7 +112,7 @@ class TwilioService {
             status: body.CallStatus,
             duration: body.CallDuration,
             from: body.From,
-            to: body.To,
+            to: body.To
         };
     }
 

@@ -51,7 +51,7 @@ router.post(
             tenantId: req.user.tenant_id,
             phoneNumber: phone_number,
             name,
-            metadata,
+            metadata
         });
 
         // Update additional fields if provided
@@ -154,6 +154,46 @@ router.get(
             limit ? parseInt(limit) : 50
         );
         res.json(messages);
+    })
+);
+
+/**
+ * POST /api/leads/bulk/update
+ * Mass update leads
+ */
+router.post(
+    '/bulk/update',
+    verifyJWT,
+    tenantLimiter,
+    asyncHandler(async (req, res) => {
+        const { leadIds, updates } = req.body;
+
+        if (!Array.isArray(leadIds) || leadIds.length === 0) {
+            return res.status(400).json({ error: 'leadIds array is required' });
+        }
+
+        const count = await supabaseService.bulkUpdateLeads(leadIds, updates);
+        res.json({ success: true, count });
+    })
+);
+
+/**
+ * POST /api/leads/bulk/assign
+ * Mass assign leads to campaign
+ */
+router.post(
+    '/bulk/assign',
+    verifyJWT,
+    tenantLimiter,
+    asyncHandler(async (req, res) => {
+        const { leadIds, campaignId } = req.body;
+
+        if (!Array.isArray(leadIds) || leadIds.length === 0) {
+            return res.status(400).json({ error: 'leadIds array is required' });
+        }
+
+        const count = await supabaseService.bulkAssignLeads(leadIds, campaignId);
+        res.json({ success: true, count });
     })
 );
 

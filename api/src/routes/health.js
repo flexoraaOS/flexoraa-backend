@@ -44,21 +44,21 @@ router.get('/', async (req, res) => {
             services: {
                 database: {
                     status: dbHealth.healthy ? 'up' : 'down',
-                    timestamp: dbHealth.timestamp,
+                    timestamp: dbHealth.timestamp
                 },
                 redis: {
-                    status: redisHealthy ? 'up' : 'down',
+                    status: redisHealthy ? 'up' : 'down'
                 },
                 pinecone: pineconeHealthy !== null ? {
-                    status: pineconeHealthy ? 'up' : 'down',
-                } : null,
-            },
+                    status: pineconeHealthy ? 'up' : 'down'
+                } : null
+            }
         });
     } catch (error) {
         res.status(503).json({
             status: 'unhealthy',
             error: error.message,
-            timestamp: new Date().toISOString(),
+            timestamp: new Date().toISOString()
         });
     }
 });

@@ -6,7 +6,7 @@ const logger = require('./logger');
 const options = {
     timeout: 5000, // If function takes longer than 5 seconds, trigger failure
     errorThresholdPercentage: 50, // When 50% of requests fail, trip the breaker
-    resetTimeout: 30000, // Wait 30 seconds before trying again
+    resetTimeout: 30000 // Wait 30 seconds before trying again
 };
 
 /**

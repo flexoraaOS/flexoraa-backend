@@ -56,7 +56,7 @@ const envSchema = z.object({
   TWILIO_FROM_NUMBER: z.string().optional(),
   TWILIO_TWIML_URL: z.string().optional(),
   KLICKTIPP_USERNAME: z.string().optional(),
-  KLICKTIPP_PASSWORD: z.string().optional(),
+  KLICKTIPP_PASSWORD: z.string().optional()
 });
 
 // Parse and validate

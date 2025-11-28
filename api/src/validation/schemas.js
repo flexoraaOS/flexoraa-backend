@@ -17,7 +17,7 @@ const createLeadSchema = z.object({
     metadata: z.record(z.any()).optional().nullable(),
     has_whatsapp: z.boolean().optional().nullable(),
     stage: LeadStages.optional(),
-    status: LeadStatus.optional(),
+    status: LeadStatus.optional()
 });
 
 const updateLeadSchema = z.object({
@@ -38,7 +38,7 @@ const updateLeadSchema = z.object({
     contacted: z.boolean().optional(),
     booked_timestamp: z.string().datetime().optional().nullable(),
     stage: LeadStages.optional(),
-    note: z.string().optional().nullable(),
+    note: z.string().optional().nullable()
 });
 
 // Campaign Validation
@@ -49,7 +49,7 @@ const createCampaignSchema = z.object({
     description: z.string().optional().nullable(),
     start_date: z.string().optional().nullable(),
     end_date: z.string().optional().nullable(),
-    status: CampaignStatus.optional(),
+    status: CampaignStatus.optional()
 });
 
 const updateCampaignSchema = z.object({
@@ -57,7 +57,7 @@ const updateCampaignSchema = z.object({
     description: z.string().optional().nullable(),
     start_date: z.string().optional().nullable(),
     end_date: z.string().optional().nullable(),
-    status: CampaignStatus.optional(),
+    status: CampaignStatus.optional()
 });
 
 // Validation middleware factory

@@ -93,7 +93,7 @@ async function acceptBookingLink(token) {
 
     // Check if already accepted
     const existingResult = await db.query(
-        `SELECT * FROM booking_links WHERE token = $1`,
+        'SELECT * FROM booking_links WHERE token = $1',
         [token]
     );
 
@@ -137,7 +137,7 @@ async function acceptBookingLink(token) {
  */
 async function getBookingLinkStatus(token) {
     const result = await db.query(
-        `SELECT * FROM booking_links WHERE token = $1`,
+        'SELECT * FROM booking_links WHERE token = $1',
         [token]
     );
 

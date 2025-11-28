@@ -60,7 +60,7 @@ Create a simple, helpful reply.`;
 
         // Generate AI response
         const aiResponse = await geminiService.generateText(prompt, {
-            tenantId: lead?.tenant_id || '00000000-0000-0000-0000-000000000001',
+            tenantId: lead?.tenant_id || '00000000-0000-0000-0000-000000000001'
         });
 
         // Save to chat memory
@@ -74,7 +74,7 @@ Create a simple, helpful reply.`;
         // Update lead if exists
         if (lead) {
             await supabaseService.updateLead(lead.id, {
-                last_contacted_at: new Date(),
+                last_contacted_at: new Date()
             });
         }
 
@@ -85,7 +85,7 @@ Create a simple, helpful reply.`;
             received: true,
             workflow: 'chat_responder',
             leadId: lead?.id,
-            aiResponse: aiResponse.text,
+            aiResponse: aiResponse.text
         });
     } catch (error) {
         logger.error({ err: error }, 'Chat responder failed');
@@ -95,5 +95,5 @@ Create a simple, helpful reply.`;
 };
 
 module.exports = {
-    handleMessage,
+    handleMessage
 };

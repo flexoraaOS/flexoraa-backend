@@ -9,12 +9,12 @@ const logger = pino({
         options: {
             colorize: true,
             translateTime: 'SYS:standard',
-            ignore: 'pid,hostname',
-        },
+            ignore: 'pid,hostname'
+        }
     } : undefined,
     base: {
-        env: config.NODE_ENV,
-    },
+        env: config.NODE_ENV
+    }
 });
 
 module.exports = logger;

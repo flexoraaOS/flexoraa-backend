@@ -13,7 +13,7 @@ const redis = new Redis({
     retryStrategy: (times) => {
         const delay = Math.min(times * 50, 2000);
         return delay;
-    },
+    }
 });
 
 redis.on('error', (err) => {
@@ -25,7 +25,7 @@ redis.on('error', (err) => {
  */
 const globalLimiter = rateLimit({
     store: new RedisStore({
-        sendCommand: (...args) => redis.call(...args),
+        sendCommand: (...args) => redis.call(...args)
     }),
     windowMs: config.RATE_LIMIT_WINDOW_MS, // 15 minutes default
     max: config.RATE_LIMIT_MAX_REQUESTS, // 100 requests default
@@ -36,9 +36,9 @@ const globalLimiter = rateLimit({
         logger.warn({ ip: req.ip, path: req.path }, 'Rate limit exceeded');
         res.status(429).json({
             error: 'Too many requests',
-            retryAfter: res.getHeader('Retry-After'),
+            retryAfter: res.getHeader('Retry-After')
         });
-    },
+    }
 });
 
 /**
@@ -47,13 +47,13 @@ const globalLimiter = rateLimit({
 const tenantLimiter = rateLimit({
     store: new RedisStore({
         sendCommand: (...args) => redis.call(...args),
-        prefix: 'rl:tenant:',
+        prefix: 'rl:tenant:'
     }),
     windowMs: 60 * 1000, // 1 minute
     max: 60, // 60 requests per minute per tenant
     skip: (req) => !req.user?.tenantId,
     keyGenerator: (req) => req.user?.tenantId || req.ip,
-    message: 'Tenant rate limit exceeded',
+    message: 'Tenant rate limit exceeded'
 });
 
 /**
@@ -62,13 +62,13 @@ const tenantLimiter = rateLimit({
 const webhookLimiter = rateLimit({
     store: new RedisStore({
         sendCommand: (...args) => redis.call(...args),
-        prefix: 'rl:webhook:',
+        prefix: 'rl:webhook:'
     }),
     windowMs: 60 * 1000, // 1 minute
     max: 300, // 300 webhooks per minute
     skip: (req) => false, // Always apply
     keyGenerator: (req) => req.headers['x-webhook-source'] || req.ip,
-    message: 'Webhook rate limit exceeded',
+    message: 'Webhook rate limit exceeded'
 });
 
 /**
@@ -77,11 +77,11 @@ const webhookLimiter = rateLimit({
 const strictLimiter = rateLimit({
     store: new RedisStore({
         sendCommand: (...args) => redis.call(...args),
-        prefix: 'rl:strict:',
+        prefix: 'rl:strict:'
     }),
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 5, // Only 5 requests per 15 minutes
-    message: 'Too many attempts, please try again later',
+    message: 'Too many attempts, please try again later'
 });
 
 module.exports = {
@@ -89,5 +89,5 @@ module.exports = {
     tenantLimiter,
     webhookLimiter,
     strictLimiter,
-    redis, // Export for other uses
+    redis // Export for other uses
 };

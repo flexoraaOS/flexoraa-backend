@@ -125,11 +125,11 @@ async function getAuditTrail(leadId, options = {}) {
 async function getRecentAudit(options = {}) {
     const { limit = 100, action = null } = options;
 
-    let query = `SELECT * FROM lead_audit`;
+    let query = 'SELECT * FROM lead_audit';
     const params = [];
 
     if (action) {
-        query += ` WHERE action = $1`;
+        query += ' WHERE action = $1';
         params.push(action);
     }
 

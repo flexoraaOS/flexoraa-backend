@@ -24,7 +24,7 @@ const verifyJWT = async (req, res, next) => {
             id: decoded.userId,
             email: decoded.email,
             role: decoded.role,
-            tenantId: decoded.tenantId,
+            tenantId: decoded.tenantId
         };
 
         // Set session context for RLS
@@ -50,7 +50,7 @@ const verifyAPIKey = async (req, res, next) => {
 
         // Lookup API key in database
         const result = await db.query(
-            `SELECT id, role, tenant_id FROM users WHERE api_key_hash = crypt($1, api_key_hash)`,
+            'SELECT id, role, tenant_id FROM users WHERE api_key_hash = crypt($1, api_key_hash)',
             [apiKey]
         );
 
@@ -61,7 +61,7 @@ const verifyAPIKey = async (req, res, next) => {
         req.user = {
             id: result.rows[0].id,
             role: result.rows[0].role,
-            tenantId: result.rows[0].tenant_id,
+            tenantId: result.rows[0].tenant_id
         };
 
         next();
@@ -106,7 +106,7 @@ const optionalAuth = async (req, res, next) => {
             id: decoded.userId,
             email: decoded.email,
             role: decoded.role,
-            tenantId: decoded.tenantId,
+            tenantId: decoded.tenantId
         };
     } catch (error) {
         // Invalid token, but continue anyway (optional auth)
@@ -120,5 +120,5 @@ module.exports = {
     verifyJWT,
     verifyAPIKey,
     requireRole,
-    optionalAuth,
+    optionalAuth
 };

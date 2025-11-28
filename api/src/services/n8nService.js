@@ -9,9 +9,9 @@ class N8NService {
             baseURL: this.baseURL,
             headers: {
                 'X-N8N-API-KEY': this.apiKey,
-                'Content-Type': 'application/json',
+                'Content-Type': 'application/json'
             },
-            timeout: 30000,
+            timeout: 30000
         });
     }
 
@@ -27,7 +27,7 @@ class N8NService {
             return {
                 success: true,
                 executionId: response.data.executionId,
-                data: response.data,
+                data: response.data
             };
         } catch (error) {
             console.error('N8N workflow trigger failed:', error.message);
@@ -46,7 +46,7 @@ class N8NService {
                 status: response.data.finished ? 'completed' : 'running',
                 startedAt: response.data.startedAt,
                 stoppedAt: response.data.stoppedAt,
-                data: response.data,
+                data: response.data
             };
         } catch (error) {
             console.error('Failed to get execution status:', error.message);

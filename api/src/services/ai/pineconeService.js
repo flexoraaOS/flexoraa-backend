@@ -62,8 +62,8 @@ class PineconeService {
                     values: embedding,
                     metadata: {
                         ...doc.metadata,
-                        text: doc.text, // Store text in metadata for retrieval
-                    },
+                        text: doc.text // Store text in metadata for retrieval
+                    }
                 });
             }
 
@@ -91,9 +91,9 @@ class PineconeService {
                     {
                         id: 'stub_doc_1',
                         score: 0.95,
-                        metadata: { text: 'This is a stub knowledge base article about Flexoraa.' },
-                    },
-                ],
+                        metadata: { text: 'This is a stub knowledge base article about Flexoraa.' }
+                    }
+                ]
             };
         }
 
@@ -113,7 +113,7 @@ class PineconeService {
                 vector,
                 topK,
                 filter,
-                includeMetadata: true,
+                includeMetadata: true
             });
 
             return result;

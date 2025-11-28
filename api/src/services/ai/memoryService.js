@@ -34,7 +34,7 @@ class MemoryService {
     async addMessage(tenantId, sessionId, role, content, tokenCount = null) {
         try {
             const result = await db.query(
-                `SELECT add_chat_message($1, $2, $3, $4, $5)`,
+                'SELECT add_chat_message($1, $2, $3, $4, $5)',
                 [tenantId, sessionId, role, content, tokenCount]
             );
 
@@ -74,7 +74,7 @@ class MemoryService {
     async cleanup(daysToRetain = 90) {
         try {
             const result = await db.query(
-                `SELECT cleanup_old_chat_memory($1)`,
+                'SELECT cleanup_old_chat_memory($1)',
                 [daysToRetain]
             );
 

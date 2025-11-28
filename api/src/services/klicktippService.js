@@ -16,7 +16,7 @@ class KlickTippService {
         try {
             const response = await axios.post(`${this.baseURL}account/login`, {
                 username: this.username,
-                password: this.password,
+                password: this.password
             });
 
             this.sessionId = response.data.session_id;
@@ -51,7 +51,7 @@ class KlickTippService {
                 email,
                 list_id: listId,
                 ...(phone && { sms_number: phone }),
-                ...customFields,
+                ...customFields
             };
 
             const response = await axios.post(
@@ -78,7 +78,7 @@ class KlickTippService {
                 {
                     session_id: this.sessionId,
                     email,
-                    tag_id: tagId,
+                    tag_id: tagId
                 }
             );
 
@@ -101,7 +101,7 @@ class KlickTippService {
                 {
                     session_id: this.sessionId,
                     email,
-                    tag_id: tagId,
+                    tag_id: tagId
                 }
             );
 

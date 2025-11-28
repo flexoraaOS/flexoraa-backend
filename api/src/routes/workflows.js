@@ -18,20 +18,20 @@ router.post('/send-campaign',
         if (!campaign_id || !user_id) {
             return res.status(400).json({
                 error: 'Bad Request',
-                message: 'campaign_id and user_id are required',
+                message: 'campaign_id and user_id are required'
             });
         }
 
         const result = await n8nService.triggerWorkflow('workflow-campaign', {
             campaign_id,
             user_id,
-            triggered_by: req.user?.id || req.apiKey?.name,
+            triggered_by: req.user?.id || req.apiKey?.name
         });
 
         res.json({
             status: 'success',
             message: 'Campaign workflow triggered',
-            executionId: result.executionId,
+            executionId: result.executionId
         });
     })
 );
@@ -49,19 +49,19 @@ router.post('/verify-leads',
         if (!user_id) {
             return res.status(400).json({
                 error: 'Bad Request',
-                message: 'user_id is required',
+                message: 'user_id is required'
             });
         }
 
         const result = await n8nService.triggerWorkflow('workflow-6', {
             body: { user_id },
-            triggered_by: req.user?.id || req.apiKey?.name,
+            triggered_by: req.user?.id || req.apiKey?.name
         });
 
         res.json({
             status: 'success',
             message: 'Lead verification started',
-            executionId: result.executionId,
+            executionId: result.executionId
         });
     })
 );
@@ -79,19 +79,19 @@ router.post('/generate-prompts',
         if (!user_id) {
             return res.status(400).json({
                 error: 'Bad Request',
-                message: 'user_id is required',
+                message: 'user_id is required'
             });
         }
 
         const result = await n8nService.triggerWorkflow('workflow-5', {
             body: { user_id },
-            triggered_by: req.user?.id || req.apiKey?.name,
+            triggered_by: req.user?.id || req.apiKey?.name
         });
 
         res.json({
             status: 'success',
             message: 'Prompt generation started',
-            executionId: result.executionId,
+            executionId: result.executionId
         });
     })
 );

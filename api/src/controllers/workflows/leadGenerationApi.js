@@ -54,7 +54,7 @@ Return ONLY valid JSON in this format:
             const aiResponse = await geminiService.generateStructured(prompt, {}, {
                 tenantId: campaign.tenant_id,
                 phoneNumber: lead.phone_number,
-                companyName: campaign.name,
+                companyName: campaign.name
             });
 
             // Save to chat memory
@@ -77,7 +77,7 @@ Return ONLY valid JSON in this format:
             userId: user_id,
             campaignId: campaign.id,
             totalLeads: leads.length,
-            results,
+            results
         });
     } catch (error) {
         logger.error({ err: error }, 'Lead generation API failed');
@@ -87,5 +87,5 @@ Return ONLY valid JSON in this format:
 };
 
 module.exports = {
-    handleLeadGeneration,
+    handleLeadGeneration
 };
