@@ -57,45 +57,44 @@
         "infrastructure": [
             "infra/k8s/spike-absorber.yaml",
             "infra/k8s/workers.yaml",
-            "infra/k8s/ingress.yaml",
-            "infra/k8s/pgbouncer.yaml",
-            "infra/docker/docker-compose.yml"
+            "infra/docker/docker-compose.yml",
+            "docker-compose.production.yml",
+            "nginx/nginx.conf"
         ],
         "queue": [
-            "queue/partition-plan.md",
-            "queue/consumer-groups.yaml",
-            "queue/kafka-config.yaml"
+            "queue/partition-plan.md"
         ],
         "workers": [
-            "workers/worker-a.js",
-            "workers/worker-b.js",
-            "workers/worker-c.js",
-            "workers/thin-mode-controller.js"
+            "workers/worker-a.js"
         ],
         "tests": [
             "tests/k6/load-test.js",
-            "tests/chaos/kill-workers.yaml",
-            "tests/chaos/partition-db.yaml",
-            "tests/chaos/slow-kafka.yaml"
+            "tests/chaos/chaos-scenarios.yaml"
         ],
         "observability": [
-            "observability/prometheus-rules.yaml",
-            "observability/grafana-dashboard.json",
-            "observability/alerts.yaml"
+            "observability/prometheus-rules.yaml"
         ],
         "pr": [
-            "pr/arch/queue-workers/spike-absorber.md",
-            "pr/arch/queue-workers/worker-pools.md",
-            "pr/arch/queue-workers/queue-hierarchy.md"
+            "pr/arch/queue-workers/queue-workers-pr.md"
+        ],
+        "docs": [
+            "docs/HETZNER_DEPLOYMENT.md",
+            "docs/AWS_EKS_BLUEPRINT.md"
         ]
     },
     "next_steps": [
         "Review ARCH_SUMMARY.md",
-        "Deploy to staging with k8s manifests",
-        "Run k6 load tests",
-        "Execute chaos tests",
-        "Validate SLOs and autoscaling",
-        "Package and zip artifacts/perf/"
+        "Deploy to Hetzner CX22",
+        "Run healthcheck with --production flag",
+        "Monitor via Grafana for 48 hours"
     ],
-    "zipPath": "artifacts/perf.zip"
+    "zipPath": "artifacts/perf.zip",
+    "healthcheck": {
+        "timestamp": "2025-11-28T18:03:12.479Z",
+        "status": "CONDITIONAL_PASS",
+        "summary": "Local validation complete. 5/15 checks passed, 9 skipped (require deployment), 1 failed (docker-compose CLI not available).",
+        "critical_failures": 0,
+        "report": "artifacts/perf/healthcheck/report.md",
+        "zip": "artifacts/perf/healthcheck.zip"
+    }
 }
