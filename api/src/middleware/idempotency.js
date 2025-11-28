@@ -13,6 +13,7 @@
  */
 
 const Redis = require('ioredis');
+const crypto = require('crypto');
 const db = require('../config/database');
 const logger = require('../utils/logger');
 
@@ -126,6 +127,11 @@ async function validateIdempotency(req, res, next) {
         return next(); // No idempotency key, proceed normally
     }
 
+    // Generate body hash for replay attack prevention
+    const bodyHash = crypto.createHash('sha256')
+        .update(JSON.stringify(req.body || {}))
+        .digest('hex');
+
     const cacheKey = `idempotency:${idempotencyKey}`;
 
     // 1. Try Redis first (fast path)
@@ -137,6 +143,19 @@ async function validateIdempotency(req, res, next) {
 
         if (cachedResponse) {
             logger.info('Idempotency hit (DB fallback)', { key: idempotencyKey });
+
+            // REPLAY ATTACK PREVENTION: Validate body hash
+            if (cachedResponse.bodyHash && cachedResponse.bodyHash !== bodyHash) {
+                logger.warn('Replay attack detected: Idempotency key reused with different body', {
+                    key: idempotencyKey,
+                    originalHash: cachedResponse.bodyHash,
+                    newHash: bodyHash
+                });
+                return res.status(409).json({
+                    error: 'Conflict',
+                    message: 'Idempotency key already used with different request body'
+                });
+            }
 
             // Restore to Redis if available
             if (redisAvailable) {
@@ -150,10 +169,26 @@ async function validateIdempotency(req, res, next) {
     } else {
         logger.info('Idempotency hit (Redis)', { key: idempotencyKey });
 
+        // REPLAY ATTACK PREVENTION: Validate body hash
+        if (cachedResponse.bodyHash && cachedResponse.bodyHash !== bodyHash) {
+            logger.warn('Replay attack detected: Idempotency key reused with different body', {
+                key: idempotencyKey,
+                originalHash: cachedResponse.bodyHash,
+                newHash: bodyHash
+            });
+            return res.status(409).json({
+                error: 'Conflict',
+                message: 'Idempotency key already used with different request body'
+            });
+        }
+
         // Return cached response from Redis
         res.set(cachedResponse.headers);
         return res.status(cachedResponse.status).json(cachedResponse.body);
     }
+
+    // Store bodyHash for future validation
+    req.idempotencyBodyHash = bodyHash;
 
     // 3. No cache hit - intercept response to store it
     const originalJson = res.json;
@@ -162,7 +197,8 @@ async function validateIdempotency(req, res, next) {
         const responseData = {
             status: res.statusCode,
             body,
-            headers: res.getHeaders()
+            headers: res.getHeaders(),
+            bodyHash: req.idempotencyBodyHash // Store body hash for replay attack prevention
         };
 
         // Store in both Redis and DB

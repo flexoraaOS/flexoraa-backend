@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { verifyJWT } = require('../middleware/auth');
 const validateIdempotency = require('../middleware/idempotency');
+const { validateNonEmptyBody } = require('../middleware/validatePayload');
 const crypto = require('crypto');
 const logger = require('../utils/logger');
 
@@ -17,6 +18,7 @@ const klicktippController = require('../controllers/webhooks/klicktippController
  */
 router.post('/leados',
     verifyJWT,
+    validateNonEmptyBody,  // Reject empty payloads
     validateIdempotency,
     leadosController.handleLeados
 );

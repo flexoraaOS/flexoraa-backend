@@ -1,0 +1,144 @@
+groups:
+- name: enterprise_capacity_alerts
+  interval: 30s
+  rules:
+  # API Latency Alerts
+  - alert: APILatencyHigh
+    expr: histogram_quantile(0.99, rate(http_request_duration_seconds_bucket[5m])) > 0.5
+    for: 5m
+    labels:
+      severity: warning
+      tier: api
+    annotations:
+      summary: "API P99 latency exceeded 500ms"
+      description: "P99 latency is {{ $value }}s for {{ $labels.endpoint }}"
+
+  # Queue Lag Alerts
+  - alert: CriticalQueueLagHigh
+    expr: kafka_consumer_lag{queue="critical"} > 5000
+    for: 2m
+    labels:
+      severity: critical
+      tier: queue
+    annotations:
+      summary: "Critical queue lag exceeded 5000 messages"
+      description: "Queue lag is {{ $value }} messages. Activate thin-mode immediately."
+
+  - alert: NormalQueueLagHigh
+    expr: kafka_consumer_lag{queue="normal"} > 10000
+    for: 5m
+    labels:
+      severity: warning
+      tier: queue
+    annotations:
+      summary: "Normal queue lag exceeded 10000 messages"
+      description: "Queue lag is {{ $value }} messages. Consider scaling workers."
+
+  # Thin-Mode Activation
+  - alert: ThinModeActivated
+    expr: thin_mode_active == 1
+    for: 1m
+    labels:
+      severity: warning
+      tier: system
+    annotations:
+      summary: "Thin-mode activated due to overload"
+      description: "System is running in degraded mode. Enrichments and reports disabled."
+
+  # Database Alerts
+  - alert: DatabaseWriteLatencyHigh
+    expr: histogram_quantile(0.99, rate(db_query_duration_seconds_bucket{operation="INSERT"}[5m])) > 0.1
+    for: 3m
+    labels:
+      severity: warning
+      tier: database
+    annotations:
+      summary: "Database write P99 latency exceeded 100ms"
+      description: "Write latency is {{ $value }}s. Check PgBouncer and connection pool."
+
+  - alert: DatabaseConnectionPoolExhausted
+    expr: pg_stat_database_numbackends / pg_settings_max_connections > 0.9
+    for: 2m
+    labels:
+      severity: critical
+      tier: database
+    annotations:
+      summary: "Database connection pool at 90% capacity"
+      description: "{{ $value | humanizePercentage }} of connections in use. Scale PgBouncer or reject connections."
+
+  # Worker Pool Alerts
+  - alert: WorkerPoolUnhealthy
+    expr: up{job="worker-a"} < 0.8
+    for: 3m
+    labels:
+      severity: critical
+      tier: workers
+    annotations:
+      summary: "Worker pool A has <80% healthy pods"
+      description: "Only {{ $value | humanizePercentage }} pods are healthy. Check for crashes."
+
+  # Circuit Breaker Alerts
+  - alert: CircuitBreakerOpen
+    expr: circuit_breaker_state{service="openai"} == 1
+    for: 1m
+    labels:
+      severity: warning
+      tier: integrations
+    annotations:
+      summary: "Circuit breaker opened for {{ $labels.service }}"
+      description: "External service {{ $labels.service }} is experiencing failures. Using fallback."
+
+  # Cost Cap Alerts
+  - alert: BurstBudgetExceeded
+    expr: total_pod_count > 200
+    for: 5m
+    labels:
+      severity: critical
+      tier: cost
+    annotations:
+      summary: "Burst budget exceeded (>200 pods)"
+      description: "Currently running {{ $value }} pods. Emergency scale-stop may activate."
+
+  # Error Rate Alerts
+  - alert: ErrorRateHigh
+    expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.01
+    for: 3m
+    labels:
+      severity: critical
+      tier: api
+    annotations:
+      summary: "API error rate exceeded 1%"
+      description: "Error rate is {{ $value | humanizePercentage }}. Check logs immediately."
+
+  # Idempotency Failures
+  - alert: IdempotencyConflictsHigh
+    expr: rate(idempotency_conflicts_total[5m]) > 10
+    for: 3m
+    labels:
+      severity: warning
+      tier: api
+    annotations:
+      summary: "High rate of idempotency conflicts (replay attacks?)"
+      description: "{{ $value }} conflicts/sec. Possible bot or replay attack."
+
+  # Redis Alerts
+  - alert: RedisMemoryHigh
+    expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.9
+    for: 5m
+    labels:
+      severity: warning
+      tier: cache
+    annotations:
+      summary: "Redis memory usage at 90%"
+      description: "Memory usage is {{ $value | humanizePercentage }}. LRU eviction may be aggressive."
+
+  # Kafka Alerts
+  - alert: KafkaPartitionUnderReplicated
+    expr: kafka_topic_partition_under_replicated_partitions > 0
+    for: 5m
+    labels:
+      severity: critical
+      tier: queue
+    annotations:
+      summary: "Kafka partition under-replicated"
+      description: "{{ $value }} partitions are under-replicated. Data loss risk if broker fails."

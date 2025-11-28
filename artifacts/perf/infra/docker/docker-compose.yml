@@ -1,0 +1,216 @@
+version: '3.8'
+
+services:
+  # Kafka Cluster (3 brokers for HA)
+  kafka-1:
+    image: confluentinc/cp-kafka:7.5.0
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-1:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_NUM_PARTITIONS: 100
+      KAFKA_LOG_RETENTION_HOURS: 48
+    ports:
+      - "9092:9092"
+    depends_on:
+      - zookeeper
+
+  kafka-2:
+    image: confluentinc/cp-kafka:7.5.0
+    environment:
+      KAFKA_BROKER_ID: 2
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-2:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+    ports:
+      - "9093:9093"
+    depends_on:
+      - zookeeper
+
+  kafka-3:
+    image: confluentinc/cp-kafka:7.5.0
+    environment:
+      KAFKA_BROKER_ID: 3
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-3:9094
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+    ports:
+      - "9094:9094"
+    depends_on:
+      - zookeeper
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+
+  # Redis Cluster (for idempotency + caching)
+  redis-master:
+    image: redis:7-alpine
+    command: redis-server --maxmemory 4gb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+
+  redis-replica:
+    image: redis:7-alpine
+    command: redis-server --replicaof redis-master 6379 --maxmemory 4gb
+    depends_on:
+      - redis-master
+
+  # PostgreSQL with PgBouncer
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: flexoraa
+      POSTGRES_USER: flexoraa_user
+      POSTGRES_PASSWORD: flexoraa_pass
+      POSTGRES_MAX_CONNECTIONS: 500
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    command: >
+      postgres
+      -c max_connections=500
+      -c shared_buffers=2GB
+      -c effective_cache_size=6GB
+      -c maintenance_work_mem=512MB
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=16MB
+      -c default_statistics_target=100
+      -c random_page_cost=1.1
+      -c effective_io_concurrency=200
+      -c work_mem=10MB
+      -c min_wal_size=1GB
+      -c max_wal_size=4GB
+
+  pgbouncer:
+    image: edoburu/pgbouncer:1.20.1
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: flexoraa_user
+      DB_PASSWORD: flexoraa_pass
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 10000
+      DEFAULT_POOL_SIZE: 100
+      MIN_POOL_SIZE: 20
+      RESERVE_POOL_SIZE: 10
+      SERVER_IDLE_TIMEOUT: 600
+    ports:
+      - "6432:6432"
+    depends_on:
+      - postgres
+
+  # Prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./observability/prometheus-rules.yaml:/etc/prometheus/rules.yaml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    ports:
+      - "9090:9090"
+
+  # Grafana
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: false
+    volumes:
+      - ./observability/grafana-dashboard.json:/etc/grafana/provisioning/dashboards/dashboard.json
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+
+  # Spike Absorber
+  spike-absorber:
+    build:
+      context: ./workers
+      dockerfile: Dockerfile.spike-absorber
+    environment:
+      KAFKA_BROKERS: kafka-1:9092,kafka-2:9093,kafka-3:9094
+      REDIS_URL: redis://redis-master:6379
+      MAX_THROUGHPUT: 6000
+      ACK_TIMEOUT_MS: 100
+    ports:
+      - "8080:8080"
+    depends_on:
+      - kafka-1
+      - redis-master
+    deploy:
+      replicas: 10
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  # Worker A (Lightweight)
+  worker-a:
+    build:
+      context: ./workers
+      dockerfile: Dockerfile.worker-a
+    environment:
+      KAFKA_BROKERS: kafka-1:9092,kafka-2:9093,kafka-3:9094
+      REDIS_URL: redis://redis-master:6379
+      DB_URL: postgres://flexoraa_user:flexoraa_pass@pgbouncer:6432/flexoraa
+      WORKER_TYPE: A
+      QUEUE_TIER: NORMAL,LOW
+    depends_on:
+      - kafka-1
+      - pgbouncer
+      - redis-master
+    deploy:
+      replicas: 50
+      resources:
+        limits:
+          cpus: '0.4'
+          memory: 768M
+
+  # Worker B (AI Heavy)
+  worker-b:
+    build:
+      context: ./workers
+      dockerfile: Dockerfile.worker-b
+    environment:
+      KAFKA_BROKERS: kafka-1:9092,kafka-2:9093,kafka-3:9094
+      REDIS_URL: redis://redis-master:6379
+      DB_URL: postgres://flexoraa_user:flexoraa_pass@pgbouncer:6432/flexoraa
+      WORKER_TYPE: B
+      QUEUE_TIER: CRITICAL,NORMAL
+      AI_TIMEOUT_MS: 2000
+      LOCAL_MODEL_FALLBACK: "true"
+    depends_on:
+      - kafka-1
+      - pgbouncer
+      - redis-master
+    deploy:
+      replicas: 20
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+
+volumes:
+  kafka-data:
+  redis-data:
+  postgres-data:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  default:
+    driver: bridge

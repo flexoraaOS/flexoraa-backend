@@ -1,0 +1,111 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spike-absorber
+  namespace: production
+  labels:
+    app: spike-absorber
+    tier: ingress
+spec:
+  replicas: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 50%
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: spike-absorber
+  template:
+    metadata:
+      labels:
+        app: spike-absorber
+        tier: ingress
+    spec:
+      containers:
+      - name: absorber
+        image: flexoraa/spike-absorber:latest
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - name: QUEUE_URL
+          value: "kafka-brokers:9092"
+        - name: REDIS_URL
+          value: "redis-cluster:6379"
+        - name: MAX_THROUGHPUT
+          value: "6000"
+        - name: ACK_TIMEOUT_MS
+          value: "100"
+        resources:
+          requests:
+            cpu: "200m"
+            memory: "256Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spike-absorber
+  namespace: production
+spec:
+  selector:
+    app: spike-absorber
+  ports:
+  - port: 80
+    targetPort: 8080
+  type: ClusterIP
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: spike-absorber-hpa
+  namespace: production
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: spike-absorber
+  minReplicas: 10
+  maxReplicas: 100
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: External
+    external:
+      metric:
+        name: queue_lag_seconds
+      target:
+        type: Value
+        value: "5"
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 30
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 15
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 10
+        periodSeconds: 60

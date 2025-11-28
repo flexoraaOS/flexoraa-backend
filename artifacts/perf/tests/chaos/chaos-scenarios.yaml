@@ -1,0 +1,99 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: kill-30-percent-workers
+  namespace: production
+spec:
+  action: pod-kill
+  mode: percentage
+  value: "30"
+  selector:
+    namespaces:
+      - production
+    labelSelectors:
+      app: worker
+  scheduler:
+    cron: "@every 1h"
+  duration: "30s"
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: partition-database
+  namespace: production
+spec:
+  action: partition
+  mode: all
+  selector:
+    namespaces:
+      - production
+    labelSelectors:
+      app: postgres
+  direction: to
+  target:
+    mode: all
+    sel
+
+ector:
+      namespaces:
+        - production
+      labelSelectors:
+        tier: compute
+  duration: "2m"
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: slow-kafka-latency
+  namespace: production
+spec:
+  action: delay
+  mode: all
+  selector:
+    namespaces:
+      - production
+    labelSelectors:
+      app: kafka
+  delay:
+    latency: "500ms"
+    jitter: "100ms"
+  duration: "5m"
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: StressChaos
+metadata:
+  name: cpu-stress-workers
+  namespace: production
+spec:
+  mode: fixed
+  value: "5"
+  selector:
+    namespaces:
+      - production
+    labelSelectors:
+      app: worker
+      pool: b
+  stressors:
+    cpu:
+      workers: 4
+      load: 90
+  duration: "3m"
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: IOChaos
+metadata:
+  name: slow-disk-io
+  namespace: production
+spec:
+  action: latency
+  mode: all
+  selector:
+    namespaces:
+      - production
+    labelSelectors:
+      app: postgres
+  volumePath: /var/lib/postgresql
+  path: /var/lib/postgresql/data
+  delay: "100ms"
+  percent: 50
+  duration: "2m"
