@@ -11,20 +11,63 @@ process.env.LOG_LEVEL = 'silent';
 // Mock credentials (not real, just for validation)
 process.env.JWT_SECRET = 'test-jwt-secret-minimum-32-characters-required-for-validation';
 process.env.JWT_REFRESH_SECRET = 'test-jwt-refresh-secret-minimum-32-characters';
-Pinecone: jest.fn().mockImplementation(() => ({
-    Index: jest.fn().mockReturnValue({
-        query: jest.fn().mockResolvedValue({
-            matches: [
-                {
-                    id: 'doc1',
-                    score: 0.95,
-                    metadata: { text: 'Mock RAG result: Product pricing information' }
+process.env.ENCRYPTION_KEY = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test_db';
+process.env.SUPABASE_URL = 'https://mock.supabase.co';
+process.env.SUPABASE_SERVICE_KEY = 'mock-service-key';
+
+// Mock API keys (not real)
+process.env.OPENAI_API_KEY = 'mock-openai-api-key';
+process.env.PINECONE_API_KEY = 'mock-pinecone-api-key';
+process.env.PINECONE_ENVIRONMENT = 'mock-env';
+process.env.PINECONE_INDEX = 'mock-index';
+process.env.TWILIO_ACCOUNT_SID = 'mock-twilio-sid';
+process.env.TWILIO_AUTH_TOKEN = 'mock-twilio-token';
+process.env.TWILIO_PHONE_NUMBER = '+15555551234';
+process.env.META_PHONE_NUMBER_ID = 'mock-meta-phone-id';
+process.env.META_ACCESS_TOKEN = 'mock-meta-token';
+process.env.META_VERIFY_TOKEN = 'mock-verify-token';
+process.env.KLICKTIPP_USERNAME = 'mock-user';
+process.env.KLICKTIPP_PASSWORD = 'mock-pass';
+
+// Mock OpenAI ChatGPT
+jest.mock('openai', () => {
+    return class OpenAI {
+        constructor() {
+            this.chat = {
+                completions: {
+                    create: jest.fn().mockResolvedValue({
+                        choices: [{
+                            message: {
+                                content: JSON.stringify({
+                                    score: 85,
+                                    explanation: 'Mock ChatGPT scoring: High-quality lead based on response time and engagement.'
+                                })
+                            }
+                        }]
+                    })
                 }
-            ]
-        }),
-        upsert: jest.fn().mockResolvedValue({ upsertedCount: 1 })
-    })
-}))
+            };
+        }
+    };
+});
+
+// Mock Pinecone
+jest.mock('@pinecone-database/pinecone', () => ({
+    Pinecone: jest.fn().mockImplementation(() => ({
+        Index: jest.fn().mockReturnValue({
+            query: jest.fn().mockResolvedValue({
+                matches: [
+                    {
+                        id: 'doc1',
+                        score: 0.95,
+                        metadata: { text: 'Mock RAG result: Product pricing information' }
+                    }
+                ]
+            }),
+            upsert: jest.fn().mockResolvedValue({ upsertedCount: 1 })
+        })
+    }))
 }));
 
 // Mock Twilio
@@ -86,4 +129,4 @@ jest.mock('pg', () => {
     };
 });
 
-console.log('✅ Local test environment initialized - All external services mocked');
+console.log('✅ Local test environment initialized - All external services mocked (OpenAI ChatGPT)');
