@@ -1,19 +1,36 @@
 const OpenAI = require('openai');
 const logger = require('../../utils/logger');
-const { getChatMemory, saveChatMessage } = require('./chatMemoryService');
 const { retryWithBackoff } = require('../../utils/retryWrapper');
+const { createCircuitBreaker } = require('../../utils/circuitBreaker');
 
 const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY
+    apiKey: process.env.OPENAI_API_KEY,
+    timeout: 30000,
+    maxRetries: 0 // We handle retries ourselves
 });
 
+// Create circuit breaker for OpenAI calls
+const openaiBreaker = createCircuitBreaker(
+    async (prompt, options) => {
+        return await openai.chat.completions.create({
+            model: options.model || 'gpt-4',
+            messages: [{ role: 'user', content: prompt }],
+            max_tokens: options.max_tokens || 300,
+            temperature: options.temperature || 0.7
+        });
+    },
+    {
+        name: 'openai-marketing',
+        timeout: 30000,
+        errorThresholdPercentage: 50,
+        resetTimeout: 30000
+    }
+);
+
 /**
- * Generate marketing content using ChatGPT (WITH RETRY)
- * Implements n8n "AI Agent1" node logic:
- * - Prompt template with variable interpolation
- * - Structured JSON output
- * - Max tokens: 300
- * - continueOnError behavior
+ * Generate marketing content using ChatGPT with circuit breaker protection
+ * 
+ * UPDATED: Now includes circuit breaker to prevent cascading failures
  */
 async function generateMarketingContent({ name, description, phone_number }) {
     try {
@@ -31,15 +48,9 @@ Context:
 - Description: ${description}
 - Phone: ${phone_number}`;
 
+        // Use circuit breaker + retry wrapper
         const response = await retryWithBackoff(
-            async () => {
-                return await openai.chat.completions.create({
-                    model: 'gpt-4',
-                    messages: [{ role: 'user', content: prompt }],
-                    max_tokens: 300,
-                    temperature: 0.7
-                });
-            },
+            async () => await openaiBreaker.fire(prompt, { max_tokens: 300 }),
             {
                 maxRetries: 3,
                 onRetry: (attempt, delay, error) => {
@@ -50,7 +61,6 @@ Context:
 
         const content = response.choices[0].message.content;
 
-        // Parse structured output
         try {
             const parsed = JSON.parse(content);
             return {
@@ -59,17 +69,22 @@ Context:
                 company: parsed.company || name
             };
         } catch (parseError) {
-            // Fallback if AI doesn't return valid JSON
             return {
                 phone_number,
-                output: content, // Use raw content
+                output: content,
                 company: name
             };
         }
 
     } catch (error) {
-        // continueOnError behavior - return defaults
-        logger.error('Marketing content generation failed', { error, name });
+        // Check if circuit is open
+        if (error.message && error.message.includes('breaker is open')) {
+            logger.error('Marketing content generation failed - circuit open', { name });
+        } else {
+            logger.error('Marketing content generation failed', { error, name });
+        }
+
+        // Return defaults (continueOnError behavior)
         return {
             phone_number: phone_number || '',
             output: '',
@@ -78,4 +93,4 @@ Context:
     }
 }
 
-module.exports = { generateMarketingContent };
+module.exports = { generateMarketingContent, openaiBreaker };
