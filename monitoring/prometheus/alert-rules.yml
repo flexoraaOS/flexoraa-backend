@@ -1,117 +1,81 @@
-# Prometheus Alert Rules - Flexoraa Backend
-# Phase 1: Basic alerts; Phase 3: Advanced security alerts
-
 groups:
-  - name: api_health
+  - name: flexoraa_critical_alerts
     interval: 30s
     rules:
-      - alert: APIDown
-        expr: up{job="flexoraa-api"} == 0
-        for: 1m
+      - alert: HighAPILatency
+        expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job="flexoraa-api"}[5m])) by (le, route)) > 2
+        for: 5m
         labels:
           severity: critical
+          team: backend
         annotations:
-          summary: "Flexoraa API is down"
-          description: "API instance {{ $labels.instance }} has been down for more than 1 minute"
-
-      - alert: HighErrorRate
-        expr: |
-          (
-            sum(rate(http_requests_total{status_code=~"5.."}[5m]))
-            /
-            sum(rate(http_requests_total[5m]))
-          ) > 0.05
+          summary: "High API latency detected on {{ $labels.route }}"
+          description: "p95 latency is {{ $value }}s (threshold: 2s)"
+          runbook: "https://docs.flexoraa.com/runbooks/high-latency"
+          
+      - alert: HighWorkflowErrorRate
+        expr: sum(rate(workflow_executions_total{status="error"}[5m])) / sum(rate(workflow_executions_total[5m])) * 100 > 5
         for: 5m
         labels:
-          severity: warning
+          severity: critical
+          team: backend
         annotations:
-          summary: "High error rate detected"
-          description: "Error rate is above 5% (current: {{ $value | humanizePercentage }})"
-
-      - alert: SlowResponseTime
-        expr: |
-          histogram_quantile(0.95, 
-            sum(rate(http_request_duration_seconds_bucket[5m])) by (le, route)
-          ) > 2
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Slow API response time"
-          description: "95th percentile response time is above 2s for route {{ $labels.route }}"
-
-  - name: workflow_health
-    interval: 60s
-    rules:
-      - alert: WorkflowFailureRate
-        expr: |
-          (
-            sum(rate(workflow_executions_total{status="failed"}[10m]))
-            /
-            sum(rate(workflow_executions_total[10m]))
-          ) > 0.10
+          summary: "Workflow error rate exceeded 5%"
+          description: "Current error rate: {{ $value | humanizePercentage }}"
+          runbook: "https://docs.flexoraa.com/runbooks/workflow-errors"
+          
+      - alert: WhatsAppSendFailureSpike
+        expr: sum(rate(whatsapp_send_failures_total[10m])) / sum(rate(whatsapp_send_total[10m])) * 100 > 2
         for: 10m
         labels:
-          severity: warning
+          severity: critical
+          team: backend
         annotations:
-          summary: "High workflow failure rate"
-          description: "Workflow failure rate is above 10% (current: {{ $value | humanizePercentage }})"
-
-  - name: external_services
-    interval: 60s
-    rules:
-      - alert: WhatsAppDeliveryFailure
-        expr: |
-          (
-            sum(rate(whatsapp_send_failures_total[15m]))
-            /
-            sum(rate(whatsapp_send_total[15m]))
-          ) > 0.20
+          summary: "WhatsApp send failure rate > 2%"
+          description: "Failure rate: {{ $value | humanizePercentage }}"
+          runbook: "https://docs.flexoraa.com/runbooks/whatsapp-failures"
+          
+      - alert: AITokenSpendSpike
+        expr: rate(ai_tokens_used_total[1h]) > 2 * rate(ai_tokens_used_total[1h] offset 24h)
         for: 15m
         labels:
           severity: warning
+          team: backend
         annotations:
-          summary: "High WhatsApp delivery failure rate"
-          description: "WhatsApp delivery failures above 20%"
-
-      - alert: GeminiTokenLimitApproaching
-        expr: gemini_tokens_used_today > 80000
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Gemini daily token limit approaching"
-          description: "Tenant {{ $labels.tenant_id }} has used {{ $value }} tokens today"
-
-  - name: database_health
-    interval: 30s
-    rules:
-      - alert: DatabaseConnectionPoolExhausted
-        expr: pg_connection_pool_available < 5
-        for: 2m
-        labels:
-          severity: critical
-        annotations:
-          summary: "Database connection pool nearly exhausted"
-          description: "Only {{ $value }} connections available in pool"
-
-  - name: security
+          summary: "AI token spend increased >2x compared to yesterday"
+          description: "Current rate: {{ $value }} tokens/hour"
+          runbook: "https://docs.flexoraa.com/runbooks/ai-spend-spike"
+          
+  - name: flexoraa_capacity_alerts
     interval: 60s
     rules:
-      - alert: RateLimitExceeded
-        expr: rate(rate_limit_exceeded_total[5m]) > 10
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "High rate of rate limit violations"
-          description: "Rate limiting triggered {{ $value }} times/sec"
-
-      - alert: WebhookSignatureFailures
-        expr: rate(webhook_signature_failures_total[10m]) > 5
+      - alert: HighDatabaseConnectionPoolUsage
+        expr: pg_pool_active_connections / pg_pool_size > 0.8
         for: 10m
         labels:
           severity: warning
+          team: infra
         annotations:
-          summary: "Webhook signature verification failures"
-          description: "Multiple webhook signature verification failures detected"
+          summary: "Database connection pool usage > 80%"
+          description: "{{ $value | humanizePercentage }} of pool in use"
+          
+      - alert: AssignmentQueueBacklog
+        expr: assignment_queue_length{status="pending"} > 100
+        for: 30m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "Assignment queue backlog detected"
+          description: "{{ $value }} pending assignments"
+          
+      - alert: ConsentOptOutSpike
+        expr: sum(rate(consent_log_writes_total{consent_status="opt-out"}[5m])) * 300 > 10
+        for: 5m
+        labels:
+          severity: warning
+          team: compliance
+        annotations:
+          summary: "High opt-out rate detected"
+          description: "{{ $value }} opt-outs in last 5 minutes"
+          runbook: "https://docs.flexoraa.com/runbooks/opt-out-spike"

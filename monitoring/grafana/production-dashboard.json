@@ -1,0 +1,397 @@
+{
+    "dashboard": {
+        "title": "Flexoraa Production Backend - Complete Monitoring",
+        "uid": "flexoraa-prod-complete",
+        "tags": [
+            "flexoraa",
+            "production",
+            "backend"
+        ],
+        "timezone": "browser",
+        "schemaVersion": 38,
+        "refresh": "30s",
+        "panels": [
+            {
+                "id": 1,
+                "title": "API Latency (p50, p95, p99)",
+                "type": "graph",
+                "gridPos": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 12,
+                    "h": 8
+                },
+                "targets": [
+                    {
+                        "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{job=\"flexoraa-api\"}[5m])) by (le, route))",
+                        "legendFormat": "p50 - {{route}}",
+                        "refId": "A"
+                    },
+                    {
+                        "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=\"flexoraa-api\"}[5m])) by (le, route))",
+                        "legendFormat": "p95 - {{route}}",
+                        "refId": "B"
+                    },
+                    {
+                        "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{job=\"flexoraa-api\"}[5m])) by (le, route))",
+                        "legendFormat": "p99 - {{route}}",
+                        "refId": "C"
+                    }
+                ],
+                "yaxes": [
+                    {
+                        "format": "s",
+                        "label": "Latency"
+                    },
+                    {
+                        "show": false
+                    }
+                ],
+                "alert": {
+                    "name": "High API Latency (p95)",
+                    "conditions": [
+                        {
+                            "evaluator": {
+                                "params": [
+                                    2
+                                ],
+                                "type": "gt"
+                            },
+                            "query": {
+                                "params": [
+                                    "B",
+                                    "5m",
+                                    "now"
+                                ]
+                            },
+                            "reducer": {
+                                "type": "avg"
+                            },
+                            "type": "query"
+                        }
+                    ],
+                    "frequency": "60s",
+                    "handler": 1,
+                    "message": "p95 latency exceeded 2 seconds",
+                    "noDataState": "no_data",
+                    "executionErrorState": "alerting"
+                }
+            },
+            {
+                "id": 2,
+                "title": "Workflow Success Rate (per Workflow)",
+                "type": "stat",
+                "gridPos": {
+                    "x": 12,
+                    "y": 0,
+                    "w": 6,
+                    "h": 8
+                },
+                "targets": [
+                    {
+                        "expr": "sum(workflow_executions_total{status=\"success\"}) by (workflow_name) / sum(workflow_executions_total) by (workflow_name) * 100",
+                        "legendFormat": "{{workflow_name}}",
+                        "refId": "A"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "unit": "percent",
+                        "thresholds": {
+                            "steps": [
+                                {
+                                    "value": 0,
+                                    "color": "red"
+                                },
+                                {
+                                    "value": 90,
+                                    "color": "yellow"
+                                },
+                                {
+                                    "value": 95,
+                                    "color": "green"
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            {
+                "id": 3,
+                "title": "WhatsApp Template Rejection Rate",
+                "type": "graph",
+                "gridPos": {
+                    "x": 18,
+                    "y": 0,
+                    "w": 6,
+                    "h": 8
+                },
+                "targets": [
+                    {
+                        "expr": "sum(rate(whatsapp_send_failures_total{reason=\"template_rejected\"}[10m])) / sum(rate(whatsapp_send_total[10m])) * 100",
+                        "legendFormat": "Rejection Rate %",
+                        "refId": "A"
+                    }
+                ],
+                "alert": {
+                    "name": "High WhatsApp Rejection Rate",
+                    "conditions": [
+                        {
+                            "evaluator": {
+                                "params": [
+                                    2
+                                ],
+                                "type": "gt"
+                            },
+                            "query": {
+                                "params": [
+                                    "A",
+                                    "10m",
+                                    "now"
+                                ]
+                            },
+                            "reducer": {
+                                "type": "avg"
+                            },
+                            "type": "query"
+                        }
+                    ],
+                    "message": "WhatsApp template rejection rate > 2%"
+                }
+            },
+            {
+                "id": 4,
+                "title": "AI Token Spend & Calls per Minute",
+                "type": "graph",
+                "gridPos": {
+                    "x": 0,
+                    "y": 8,
+                    "w": 12,
+                    "h": 8
+                },
+                "targets": [
+                    {
+                        "expr": "rate(ai_tokens_used_total[1m])",
+                        "legendFormat": "Tokens/min - {{service}}",
+                        "refId": "A"
+                    },
+                    {
+                        "expr": "rate(ai_requests_total[1m]) * 60",
+                        "legendFormat": "Requests/min - {{service}}",
+                        "refId": "B",
+                        "yAxisIndex": 1
+                    }
+                ],
+                "yaxes": [
+                    {
+                        "format": "short",
+                        "label": "Tokens"
+                    },
+                    {
+                        "format": "short",
+                        "label": "Requests"
+                    }
+                ],
+                "alert": {
+                    "name": "AI Spend Spike",
+                    "conditions": [
+                        {
+                            "evaluator": {
+                                "params": [
+                                    2
+                                ],
+                                "type": "gt"
+                            },
+                            "query": {
+                                "params": [
+                                    "A",
+                                    "1h",
+                                    "1d"
+                                ]
+                            },
+                            "reducer": {
+                                "type": "diff_abs"
+                            },
+                            "type": "query"
+                        }
+                    ],
+                    "message": "AI token spend increased >2x compared to yesterday"
+                }
+            },
+            {
+                "id": 5,
+                "title": "Consent Log Write Rate & Opt-Out Rate",
+                "type": "graph",
+                "gridPos": {
+                    "x": 12,
+                    "y": 8,
+                    "w": 12,
+                    "h": 8
+                },
+                "targets": [
+                    {
+                        "expr": "sum(rate(consent_log_writes_total[5m])) * 300",
+                        "legendFormat": "Writes per 5min",
+                        "refId": "A"
+                    },
+                    {
+                        "expr": "sum(rate(consent_log_writes_total{consent_status=\"opt-out\"}[5m])) * 300",
+                        "legendFormat": "Opt-outs per 5min",
+                        "refId": "B"
+                    }
+                ],
+                "alert": {
+                    "name": "Opt-Out Spike",
+                    "conditions": [
+                        {
+                            "evaluator": {
+                                "params": [
+                                    10
+                                ],
+                                "type": "gt"
+                            },
+                            "query": {
+                                "params": [
+                                    "B",
+                                    "5m",
+                                    "now"
+                                ]
+                            },
+                            "reducer": {
+                                "type": "avg"
+                            },
+                            "type": "query"
+                        }
+                    ],
+                    "message": "High opt-out rate detected (>10 per 5 minutes)"
+                }
+            },
+            {
+                "id": 6,
+                "title": "Assignment Queue Length & Processing Time",
+                "type": "graph",
+                "gridPos": {
+                    "x": 0,
+                    "y": 16,
+                    "w": 12,
+                    "h": 8
+                },
+                "targets": [
+                    {
+                        "expr": "assignment_queue_length{status=\"pending\"}",
+                        "legendFormat": "Pending Assignments",
+                        "refId": "A"
+                    },
+                    {
+                        "expr": "histogram_quantile(0.95, rate(assignment_processing_duration_seconds_bucket[5m]))",
+                        "legendFormat": "p95 Processing Time",
+                        "refId": "B",
+                        "yAxisIndex": 1
+                    }
+                ],
+                "yaxes": [
+                    {
+                        "format": "short",
+                        "label": "Queue Length"
+                    },
+                    {
+                        "format": "s",
+                        "label": "Processing Time"
+                    }
+                ]
+            },
+            {
+                "id": 7,
+                "title": "Error Rate by Endpoint",
+                "type": "graph",
+                "gridPos": {
+                    "x": 12,
+                    "y": 16,
+                    "w": 12,
+                    "h": 8
+                },
+                "targets": [
+                    {
+                        "expr": "sum(rate(http_requests_total{status=~\"5..\"}[5m])) by (route) / sum(rate(http_requests_total[5m])) by (route) * 100",
+                        "legendFormat": "{{route}}",
+                        "refId": "A"
+                    }
+                ],
+                "yaxes": [
+                    {
+                        "format": "percent",
+                        "label": "Error Rate %"
+                    }
+                ],
+                "alert": {
+                    "name": "High Error Rate",
+                    "conditions": [
+                        {
+                            "evaluator": {
+                                "params": [
+                                    5
+                                ],
+                                "type": "gt"
+                            },
+                            "query": {
+                                "params": [
+                                    "A",
+                                    "5m",
+                                    "now"
+                                ]
+                            },
+                            "reducer": {
+                                "type": "avg"
+                            },
+                            "type": "query"
+                        }
+                    ],
+                    "message": "Workflow error rate > 5%"
+                }
+            },
+            {
+                "id": 8,
+                "title": "Database Connection Pool Usage",
+                "type": "graph",
+                "gridPos": {
+                    "x": 0,
+                    "y": 24,
+                    "w": 24,
+                    "h": 8
+                },
+                "targets": [
+                    {
+                        "expr": "pg_pool_size",
+                        "legendFormat": "Pool Size",
+                        "refId": "A"
+                    },
+                    {
+                        "expr": "pg_pool_active_connections",
+                        "legendFormat": "Active Connections",
+                        "refId": "B"
+                    },
+                    {
+                        "expr": "pg_pool_idle_connections",
+                        "legendFormat": "Idle Connections",
+                        "refId": "C"
+                    },
+                    {
+                        "expr": "pg_pool_waiting_count",
+                        "legendFormat": "Waiting",
+                        "refId": "D"
+                    }
+                ]
+            }
+        ],
+        "time": {
+            "from": "now-6h",
+            "to": "now"
+        },
+        "templating": {
+            "list": []
+        },
+        "annotations": {
+            "list": []
+        }
+    }
+}
