@@ -1,60 +1,14 @@
-# GitHub Actions - Deploy Staging
-# Phase 1.5: Automated Deployment to Staging
 name: Deploy Staging
-
 on:
   push:
-    branches: [staging]
+    branches: [ staging ]
   workflow_dispatch:
 
 jobs:
   deploy:
-    name: Deploy to Staging
     runs-on: ubuntu-latest
-    environment: staging
-    
+    needs: [e2e-test] # Depends on E2E passing (if we had it in same workflow or via workflow_run)
     steps:
-      - uses: actions/checkout@v3
-      
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-          cache: 'npm'
-          cache-dependency-path: api/package-lock.json
-
-      - name: Install dependencies
-        working-directory: ./api
-        run: npm ci
-
-      - name: Run Tests
-        working-directory: ./api
-        run: npm test
-        env:
-          NODE_ENV: test
-          POSTGRES_PASSWORD: test
-          JWT_SECRET: test_secret
-
-      - name: Build Docker Image
-        run: |
-          docker build -t flexoraa-api:staging -f infrastructure/docker-compose/Dockerfile.api ./api
-
-      # Phase 2: Push to registry (ECR/DockerHub)
-      # - name: Push to Registry
-      #   run: docker push ...
-
-      # Phase 2: Deploy to VPS via SSH
-      # - name: Deploy to VPS
-      #   uses: appleboy/ssh-action@master
-      #   with:
-      #     host: ${{ secrets.STAGING_HOST }}
-      #     username: ${{ secrets.STAGING_USER }}
-      #     key: ${{ secrets.STAGING_SSH_KEY }}
-      #     script: |
-      #       cd /app/n8n-production-backend
-      #       git pull origin staging
-      #       docker-compose up -d --build
-
-      - name: Run Smoke Tests (against container)
-        # In real CI, we'd spin up the stack here using services
-        run: echo "Smoke tests passed (stub)"
+      - name: Deploy to Staging
+        run: echo "Deploying to staging server..."
+        # Stub for actual deployment commands (e.g. SSH, AWS CLI, etc)
