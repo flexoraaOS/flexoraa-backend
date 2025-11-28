@@ -105,6 +105,10 @@ let server;
 if (require.main === module) {
     server = app.listen(PORT, () => {
         console.log(`Server running on port ${PORT}`);
+
+        // Initialize Scheduler
+        const schedulerService = require('./services/schedulerService');
+        schedulerService.init();
     });
 } else {
     // Export app for testing
