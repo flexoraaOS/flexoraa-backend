@@ -1,13 +1,14 @@
 const OpenAI = require('openai');
 const logger = require('../../utils/logger');
 const { getChatMemory, saveChatMessage } = require('./chatMemoryService');
+const { retryWithBackoff } = require('../../utils/retryWrapper');
 
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY
 });
 
 /**
- * Generate marketing content using ChatGPT
+ * Generate marketing content using ChatGPT (WITH RETRY)
  * Implements n8n "AI Agent1" node logic:
  * - Prompt template with variable interpolation
  * - Structured JSON output
@@ -30,12 +31,22 @@ Context:
 - Description: ${description}
 - Phone: ${phone_number}`;
 
-        const response = await openai.chat.completions.create({
-            model: 'gpt-4',
-            messages: [{ role: 'user', content: prompt }],
-            max_tokens: 300,
-            temperature: 0.7
-        });
+        const response = await retryWithBackoff(
+            async () => {
+                return await openai.chat.completions.create({
+                    model: 'gpt-4',
+                    messages: [{ role: 'user', content: prompt }],
+                    max_tokens: 300,
+                    temperature: 0.7
+                });
+            },
+            {
+                maxRetries: 3,
+                onRetry: (attempt, delay, error) => {
+                    logger.warn('AI marketing retry', { attempt, delay, error: error.message, name });
+                }
+            }
+        );
 
         const content = response.choices[0].message.content;
 

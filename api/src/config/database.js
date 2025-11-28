@@ -1,91 +1,68 @@
-// Database Connection Manager
-// Handles Postgres connection pooling with row-level security
 const { Pool } = require('pg');
-const config = require('./env');
 const logger = require('../utils/logger');
 
-// Connection pool configuration
-const poolConfig = {
-    host: config.POSTGRES_HOST,
-    port: config.POSTGRES_PORT,
-    database: config.POSTGRES_DB,
-    user: config.POSTGRES_USER,
-    password: config.POSTGRES_PASSWORD,
-    max: 20, // Maximum connections in pool
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 2000,
-};
+// Production-grade connection pool configuration
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
 
-// Create pool
-const pool = new Pool(poolConfig);
+    // Connection pool settings
+    max: 20,                    // Maximum number of clients
+    min: 2,                     // Minimum number of clients
+    idleTimeoutMillis: 30000,   // Close idle clients after 30s
+    connectionTimeoutMillis: 2000, // Timeout if can't get connection in 2s
 
-// Handle pool errors
-pool.on('error', (err) => {
-    logger.error({ err }, 'Unexpected database pool error');
+    // Connection lifecycle
+    maxUses: 7500,              // Close and replace connection after 7500 uses
+    allowExitOnIdle: true,      // Allow process to exit if all connections idle
+
+    // Error handling
+    application_name: 'flexoraa-backend',
+
+    // SSL configuration (production)
+    ssl: process.env.NODE_ENV === 'production' ? {
+        rejectUnauthorized: false // Set to true with proper certs
+    } : false
 });
 
-// Set session variables for RLS (actor tracking)
-const setSessionContext = async (client, userId, actorType = 'api') => {
-    if (userId) {
-        await client.query(`SET SESSION app.current_user_id = '${userId}'`);
-    }
-    await client.query(`SET SESSION app.current_actor_type = '${actorType}'`);
-};
+// Error event listeners
+pool.on('error', (err, client) => {
+    logger.error('Unexpected database pool error', {
+        error: err.message,
+        stack: err.stack
+    });
+});
 
-// Query wrapper with logging
-const query = async (text, params) => {
-    const start = Date.now();
-    try {
-        const result = await pool.query(text, params);
-        const duration = Date.now() - start;
-        logger.debug({ query: text, duration, rows: result.rowCount }, 'Database query executed');
-        return result;
-    } catch (error) {
-        logger.error({ err: error, query: text }, 'Database query failed');
-        throw error;
-    }
-};
+pool.on('connect', () => {
+    logger.debug('New database connection established');
+});
 
-// Transaction wrapper
-const transaction = async (callback) => {
+pool.on('remove', () => {
+    logger.debug('Database connection removed from pool');
+});
+
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+    logger.info('SIGTERM signal received: closing database pool');
+    await pool.end();
+});
+
+process.on('SIGINT', async () => {
+    logger.info('SIGINT signal received: closing database pool');
+    await pool.end();
+});
+
+// Export query function with timeout
+pool.queryWithTimeout = async (text, params, timeoutMs = 5000) => {
     const client = await pool.connect();
+
     try {
-        await client.query('BEGIN');
-        const result = await callback(client);
-        await client.query('COMMIT');
+        // Set statement timeout
+        await client.query(`SET statement_timeout = ${timeoutMs}`);
+        const result = await client.query(text, params);
         return result;
-    } catch (error) {
-        await client.query('ROLLBACK');
-        throw error;
     } finally {
         client.release();
     }
 };
 
-// Health check
-const healthCheck = async () => {
-    try {
-        const result = await query('SELECT NOW()');
-        return { healthy: true, timestamp: result.rows[0].now };
-    } catch (error) {
-        return { healthy: false, error: error.message };
-    }
-};
-
-// Graceful shutdown
-const shutdown = async () => {
-    logger.info('Closing database connection pool...');
-    await pool.end();
-    logger.info('Database connection pool closed');
-};
-
-process.on('SIGINT', shutdown);
-process.on('SIGTERM', shutdown);
-
-module.exports = {
-    pool,
-    query,
-    transaction,
-    setSessionContext,
-    healthCheck,
-};
+module.exports = pool;
