@@ -102,6 +102,10 @@ app.use('/api/webhooks', webhooksRouter);
 app.use('/api/campaigns', campaignsRouter);
 const leadsRouter = require('./routes/leads');
 const adminRouter = require('./routes/admin');
+const scoringRouter = require('./routes/scoring');
+const bookingsRouter = require('./routes/bookings');
+const auditRouter = require('./routes/audit');
+const assignmentsRouter = require('./routes/assignments');
 const ipWhitelist = require('./middleware/ipWhitelist');
 
 // ... (existing code)
@@ -111,6 +115,14 @@ app.use('/health', healthRouter);
 app.use('/api/webhooks', webhooksRouter);
 app.use('/api/campaigns', campaignsRouter);
 app.use('/api/leads', leadsRouter);
+
+// Scoring Routes
+app.use('/api/scoring', scoringRouter);
+
+// Bookings & Audit
+app.use('/api/bookings', bookingsRouter);
+app.use('/api/audit', auditRouter);
+app.use('/api/assignments', assignmentsRouter);
 
 // Admin Routes (Protected)
 app.use('/api/admin', ipWhitelist(), adminRouter);
