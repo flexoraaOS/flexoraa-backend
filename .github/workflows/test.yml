@@ -42,7 +42,19 @@ jobs:
           NODE_ENV: test
           LOG_LEVEL: silent
           JWT_SECRET: test-jwt-secret-minimum-32-characters-required
+          JWT_REFRESH_SECRET: test-jwt-refresh-secret-minimum-32-characters-required
           ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+          DATABASE_URL: postgresql://test:test@localhost:5432/test
+          SUPABASE_URL: https://test.supabase.co
+          SUPABASE_SERVICE_KEY: test-service-key
+          GEMINI_API_KEY: test-gemini-key
+          PINECONE_API_KEY: test-pinecone-key
+          PINECONE_ENVIRONMENT: test
+          TWILIO_ACCOUNT_SID: test-twilio-sid
+          TWILIO_AUTH_TOKEN: test-twilio-token
+          META_PHONE_NUMBER_ID: test-meta-id
+          META_ACCESS_TOKEN: test-meta-token
+          KLICKTIPP_API_KEY: test-klicktipp-key
       
       - name: Upload coverage reports
         uses: codecov/codecov-action@v3
