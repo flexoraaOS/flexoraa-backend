@@ -71,11 +71,3 @@ jobs:
         run: |
           cd api
           npm audit --audit-level=moderate || true
-      
-      - name: Run Snyk security scan
-        uses: snyk/actions/node@master
-        continue-on-error: true
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        with:
-          args: --severity-threshold=high
