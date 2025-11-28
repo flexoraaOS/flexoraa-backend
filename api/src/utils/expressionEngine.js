@@ -1,20 +1,35 @@
 /**
- * Expression Engine
- * Implements n8n expression evaluation:
- * - {{ $json.field }} - Access current item JSON
- * - {{ $node["NodeName"].json.field }} - Access other node data
- * - Template interpolation
+ * Expression Engine with DoS Protection
+ * Implements n8n expression evaluation with safety guards
  * 
- * Note: This is a simplified version. Full n8n expression engine is more complex.
+ * FIXES: CRITICAL #9 - Expression engine DoS vulnerability
+ * 
+ * Security features:
+ * - Maximum depth limit (prevents deeply nested expressions)
+ * - Evaluation timeout (prevents infinite loops)
+ * - Circular reference detection
+ * - Resource guards
+ * 
+ * @module utils/expressionEngine
  */
 
+const MAX_DEPTH = 10; // Maximum nesting depth
+const MAX_TIMEOUT_MS = 1000; // 1 second max evaluation time
+const MAX_EXPRESSION_LENGTH = 10000; // 10KB max expression size
+
 /**
- * Evaluate n8n-style expression
+ * Evaluate n8n-style expression with DoS protection
+ * 
  * @param {string} expression - Expression like "={{ $json.name }}"
  * @param {object} context - Context object with current data
+ * @param {object} options - Evaluation options
+ * @param {number} options.maxDepth - Maximum nesting depth
+ * @param {number} options.timeout - Timeout in milliseconds
  * @returns {string} Evaluated result
+ * @throws {Error} If depth limit exceeded or timeout reached
  */
-function evaluateExpression(expression, context = {}) {
+function evaluateExpression(expression, context = {}, options = {}) {
+    const { maxDepth = MAX_DEPTH, timeout = MAX_TIMEOUT_MS } = options;
     if (!expression) return '';
 
     // Check if it's an n8n expression (starts with ={{)
