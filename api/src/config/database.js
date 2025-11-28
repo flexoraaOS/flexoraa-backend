@@ -65,4 +65,13 @@ pool.queryWithTimeout = async (text, params, timeoutMs = 5000) => {
     }
 };
 
+// Set RLS context
+pool.setSessionContext = async (client, userId, role) => {
+    const target = client || pool;
+    // Use parameterized query to prevent SQL injection
+    // Note: SET LOCAL cannot be parameterized directly in some drivers, 
+    // but set_config function is safer
+    await target.query("SELECT set_config('app.current_user_id', $1, true), set_config('app.current_user_role', $2, true)", [userId, role]);
+};
+
 module.exports = pool;

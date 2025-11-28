@@ -1,0 +1,12 @@
+{
+    "status": "success",
+    "junitPath": null,
+    "artilleryPath": null,
+    "prs": [
+        "prs/pr-break-fix-01.md",
+        "prs/pr-break-fix-02.md"
+    ],
+    "hardeningPath": "HARDENING-REPORT.md",
+    "zipPath": "artifacts/final-chaos-tests.zip",
+    "missingEnv": []
+}

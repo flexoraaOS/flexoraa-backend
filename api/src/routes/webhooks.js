@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const { authenticate } = require('../middleware/auth');
-const { validateIdempotency } = require('../middleware/idempotency');
+const { verifyJWT } = require('../middleware/auth');
+const validateIdempotency = require('../middleware/idempotency');
 const crypto = require('crypto');
 const logger = require('../utils/logger');
 
@@ -16,7 +16,7 @@ const klicktippController = require('../controllers/webhooks/klicktippController
  * Triggers lead generation + AI marketing flow
  */
 router.post('/leados',
-    authenticate,
+    verifyJWT,
     validateIdempotency,
     leadosController.handleLeados
 );

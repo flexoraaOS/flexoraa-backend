@@ -43,5 +43,6 @@ const createBreaker = (asyncFunction, name = 'default', customOptions = {}) => {
 };
 
 module.exports = {
+    createCircuitBreaker: createBreaker,
     createBreaker
 };

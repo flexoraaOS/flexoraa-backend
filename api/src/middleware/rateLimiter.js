@@ -1,6 +1,6 @@
 // Rate Limiting Middleware (Redis-backed)
 const rateLimit = require('express-rate-limit');
-const RedisStore = require('rate-limit-redis');
+const { RedisStore } = require('rate-limit-redis');
 const Redis = require('ioredis');
 const config = require('../config/env');
 const logger = require('../utils/logger');

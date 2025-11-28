@@ -88,17 +88,26 @@ app.use((err, req, res, next) => {
         traceId: req.id
     });
 
-    res.status(500).json({
-        error: process.env.NODE_ENV === 'production'
+    const statusCode = err.status || err.statusCode || 500;
+
+    res.status(statusCode).json({
+        error: process.env.NODE_ENV === 'production' && statusCode === 500
             ? 'Internal server error'
             : err.message
     });
 });
 
 const PORT = process.env.PORT || 3000;
-const server = app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-});
+let server;
+
+if (require.main === module) {
+    server = app.listen(PORT, () => {
+        console.log(`Server running on port ${PORT}`);
+    });
+} else {
+    // Export app for testing
+    module.exports = app;
+}
 
 // GRACEFUL SHUTDOWN (PR #22)
 const logger = require('./utils/logger');
