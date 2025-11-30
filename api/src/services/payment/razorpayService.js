@@ -50,6 +50,26 @@ class RazorpayService {
     }
 
     /**
+     * Create a Razorpay Order (for Token Top-up)
+     * @param {number} amount - Amount in smallest currency unit (paise)
+     * @param {string} currency - INR
+     * @param {object} notes - Metadata
+     */
+    async createOrder(amount, currency = 'INR', notes = {}) {
+        try {
+            const order = await this.instance.orders.create({
+                amount,
+                currency,
+                notes
+            });
+            return order;
+        } catch (error) {
+            logger.error({ err: error }, 'Razorpay Create Order Error');
+            throw new AppError('Failed to create payment order', 500);
+        }
+    }
+
+    /**
      * Verify webhook signature
      * @param {string} body - Raw request body
      * @param {string} signature - X-Razorpay-Signature header

@@ -1,0 +1,46 @@
+export const myCustomData = {
+  businessKPIs: {
+    activeClients: 350,
+    newClients: 42,
+    churnedClients: 8,
+    mrr: 75000,
+    arr: 900000,
+    retention: 94,
+    upcomingRenewals: 25,
+  },
+  productAnalysis: {
+    totalExecutions: 480000,
+    totalLeadOSExecutions: 300000,
+    totalAgentOSExecutions: 180000,
+    errorRate: 0.15,
+    agentOsHandoffRate: 6,
+  },
+  leadOsAnalytics: {
+    processingSpeed: 1.9,
+    executions: 9800,
+    accuracy: 92,
+    costSaved: 25000,
+  },
+  agentOsAnalytics: {
+    responseSpeed: 1.1,
+    inboundLeads: 1250,
+    persuasionSuccess: 81,
+    appointmentsBooked: 410,
+  },
+  executionData: [
+    { date: "2025-01-20", leados: 2100, agentos: 1500 },
+    { date: "2025-02-20", leados: 2400, agentos: 1800 },
+    { date: "2025-03-20", leados: 2900, agentos: 2200 },
+    { date: "2025-04-20", leados: 3100, agentos: 2500 },
+    { date: "2025-05-20", leados: 3500, agentos: 2800 },
+    { date: "2025-06-20", leados: 3300, agentos: 3000 },
+  ],
+  growthData: [
+    { month: "Jan", clients: 110 },
+    { month: "Feb", clients: 150 },
+    { month: "Mar", clients: 200 },
+    { month: "Apr", clients: 260 },
+    { month: "May", clients: 310 },
+    { month: "Jun", clients: 350 },
+  ],
+};

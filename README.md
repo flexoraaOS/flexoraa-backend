@@ -1,92 +1,35 @@
-# Flexoraa Production Backend
+# Flexoraa Intelligence OS - Backend
 
-Enterprise-grade backend for Flexoraa Intelligence OS, replacing legacy n8n workflows with a robust Node.js/Express architecture.
+Production-ready Node.js backend with advanced AI, token economy, and omnichannel messaging.
 
-## 🚀 Features
+## Features
 
-*   **API Gateway:** Express.js with JWT auth, rate limiting, and Zod validation.
-*   **Database:** PostgreSQL (Supabase) with migrations and connection pooling.
-*   **AI Engine:** Google Gemini Pro integration for lead scoring and content generation.
-*   **Vector Search:** Pinecone RAG integration for knowledge base retrieval.
-*   **Messaging:** WhatsApp Cloud API (Meta) and Twilio SMS integration.
-*   **Email Marketing:** KlickTipp integration.
-*   **Security:** AES-256 encryption for PII, IP allowlisting, and replay attack prevention.
-*   **Observability:** Structured logging and metrics telemetry.
+- **Token Economy**: Usage-based billing with Razorpay integration
+- **AI Engine**: 5-factor lead scoring + psychology-driven persuasion
+- **Omnichannel**: WhatsApp, Instagram, Facebook Messenger support
+- **Enterprise Compliance**: Immutable audit logs
+- **Reliability**: Circuit breakers, backpressure management
 
-## 🛠️ Setup & Installation
+## Quick Start
 
-### Prerequisites
-*   Node.js v18+
-*   PostgreSQL (Supabase)
-*   Redis (for caching and idempotency)
-
-### 1. Install Dependencies
 ```bash
-cd api
-npm install
+# Install dependencies
+cd api && npm install
+cd frontend && npm install
+
+# Configure environment
+cp api/.env.example api/.env
+cp frontend/.env.example frontend/.env.local
+
+# Run development servers
+cd api && npm run dev        # Backend on :3001
+cd frontend && npm run dev   # Frontend on :3000
 ```
 
-### 2. Environment Configuration
-Copy the example env file and fill in your secrets:
-```bash
-cp .env.example .env
-```
-Refer to `.env.example` for detailed descriptions of all 50+ required variables.
+## Documentation
 
-### 3. Database Migration
-Run migrations to set up the schema:
-```bash
-npm run migrate
-```
+See [PRD_v2.md](PRD_v2.md) for full product requirements.
 
-### 4. Seed Data (Staging Only)
-Populate the database with realistic test data:
-```bash
-# Seeds users, campaigns, and 100+ leads
-node ../scripts/seed-staging.js
+## License
 
-# Seeds vector database (Pinecone)
-node ../scripts/seed-vectors.js
-```
-
-### 5. Start Server
-```bash
-# Development
-npm run dev
-
-# Production
-npm start
-```
-
-## 🧪 Testing
-
-*   **Unit Tests:** `npm test`
-*   **Contract Tests:** `npx jest tests/contracts`
-*   **E2E Scenarios:** `npx jest tests/e2e`
-*   **Smoke Test:** `node ../scripts/smoke-staging.js http://localhost:3000`
-
-## 📚 Documentation
-
-*   [API Contract Map](./api-contract-map.md) - Detailed frontend-backend interface.
-*   [Hardcoded Removal Checklist](./docs/hardcoded-removal-checklist.md) - Audit of removed hardcoded values.
-*   [Operational Runbook](./docs/runbook.md) - Guide for maintenance and incident response.
-
-## 🏗️ Architecture
-
-The system follows a layered architecture:
-1.  **Routes:** Express routers handling HTTP requests.
-2.  **Middleware:** Auth, validation, idempotency, logging.
-3.  **Services:** Business logic (Leads, Campaigns, AI, WhatsApp).
-4.  **Data Access:** Direct DB queries via `pg` pool.
-
-## 🔒 Security
-
-*   **Authentication:** JWT with refresh tokens.
-*   **PII Protection:** Phone numbers and emails are encrypted at rest.
-*   **GDPR:** Consent logs track all user opt-ins.
-*   **Idempotency:** `X-Idempotency-Key` header supported for critical actions.
-
-## 📦 Deployment
-
-The project is containerized and ready for deployment via Docker or standard Node.js environments.
-See `.github/workflows` for CI/CD pipelines.
+Proprietary - Flexoraa Intelligence OS

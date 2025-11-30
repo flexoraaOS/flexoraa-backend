@@ -6,6 +6,9 @@ const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY
 });
 
+const scoringService = require('./scoringService');
+const psychologyService = require('./psychologyService');
+
 /**
  * Generate AI chat reply
  * Implements n8n "AI Agent" node logic from Workflow 2:
@@ -16,15 +19,34 @@ const openai = new OpenAI({
  */
 async function generateAIReply({ userMessage, phoneNumber, leadContext, campaignContext }) {
     try {
-        // Get chat history (matches "Simple Memory" node)
+        // 1. Update Lead Score (Real-time)
+        if (leadContext && leadContext.id) {
+            const newScore = await scoringService.updateLeadScore(leadContext.id);
+            leadContext.score = newScore; // Update context with fresh score
+        }
+
+        // 2. Get Psychology Strategy
+        const backpressureService = require('./reliability/backpressureService');
+        let persuasionStrategy = '';
+
+        if (!backpressureService.shouldDisablePersuasion()) {
+            persuasionStrategy = psychologyService.getPersuasionStrategy(leadContext || {});
+        } else {
+            logger.info('Backpressure: Persuasion disabled');
+        }
+
+        // 3. Get chat history (matches "Simple Memory" node)
         const chatHistory = await getChatMemory(phoneNumber);
 
-        // Build context-aware prompt
+        // 4. Build context-aware prompt
         const systemPrompt = `You are a helpful assistant for ${campaignContext.name || 'our company'}.
 
 Lead Information:
 - Name: ${leadContext.name || 'Unknown'}
 - Status: ${leadContext.status || 'new'}
+- Score: ${leadContext.score || 0}
+
+${persuasionStrategy}
 
 Campaign Context:
 - Campaign: ${campaignContext.name || 'General'}

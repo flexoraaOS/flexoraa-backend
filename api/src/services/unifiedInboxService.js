@@ -59,7 +59,15 @@ class UnifiedInboxService {
             await client.query('COMMIT');
 
             // 3. Trigger Automation (Async)
-            // TODO: Trigger n8n workflow or AI response here
+            const backpressureService = require('./reliability/backpressureService');
+            await backpressureService.checkSystemHealth(); // Refresh status
+
+            if (backpressureService.shouldUseTemplatesOnly()) {
+                logger.warn({ tenantId }, 'Backpressure: Skipping AI, Template Mode Active');
+                // TODO: Send fallback template
+            } else {
+                // TODO: Trigger n8n workflow or AI response here
+            }
 
             return messageResult.rows[0];
 
@@ -179,6 +187,13 @@ class UnifiedInboxService {
                 [senderId, leadId]
             );
         }
+
+        // 3. Audit Log (Async)
+        const auditService = require('./compliance/auditService');
+        auditService.logEvent(tenantId, 'SYSTEM', 'lead_created', leadId, {
+            source: channel,
+            senderName
+        });
 
         return leadId;
     }

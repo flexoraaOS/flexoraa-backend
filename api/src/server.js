@@ -65,6 +65,7 @@ app.use('/api/webhooks', webhooksRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/subscriptions', require('./routes/subscriptions'));
 app.use('/api/analytics', require('./routes/analytics'));
+app.use('/api/billing', require('./routes/billing'));
 
 // Health check with circuit breaker status
 app.get('/health', async (req, res) => {
