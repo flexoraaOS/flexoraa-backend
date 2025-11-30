@@ -66,6 +66,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/subscriptions', require('./routes/subscriptions'));
 app.use('/api/analytics', require('./routes/analytics'));
 app.use('/api/billing', require('./routes/billing'));
+app.use('/api/appointments', require('./routes/appointments'));
 
 // Health check with circuit breaker status
 app.get('/health', async (req, res) => {
@@ -101,20 +102,6 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 3000;
-let server;
-
-if (require.main === module) {
-    server = app.listen(PORT, () => {
-        console.log(`Server running on port ${PORT}`);
-
-        // Initialize Scheduler
-        const schedulerService = require('./services/schedulerService');
-        schedulerService.init();
-    });
-} else {
-    // Export app for testing
-    module.exports = app;
-}
 
 // GRACEFUL SHUTDOWN (PR #22)
 const logger = require('./utils/logger');

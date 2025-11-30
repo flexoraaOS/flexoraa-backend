@@ -58,16 +58,11 @@ class UnifiedInboxService {
 
             await client.query('COMMIT');
 
-            // 3. Trigger Automation (Async)
-            const backpressureService = require('./reliability/backpressureService');
-            await backpressureService.checkSystemHealth(); // Refresh status
-
-            if (backpressureService.shouldUseTemplatesOnly()) {
-                logger.warn({ tenantId }, 'Backpressure: Skipping AI, Template Mode Active');
-                // TODO: Send fallback template
-            } else {
-                // TODO: Trigger n8n workflow or AI response here
-            }
+            // 3. Event-Driven Automation (Async)
+            const messageId = messageResult.rows[0].id;
+            this._processMessageAutomation(leadId, content.body, tenantId, messageId).catch(err => {
+                logger.error({ err, messageId }, 'Automation processing failed');
+            });
 
             return messageResult.rows[0];
 
@@ -204,6 +199,60 @@ class UnifiedInboxService {
             [leadId, platform]
         );
         return res.rows[0];
+    }
+
+    /**
+     * Event-Driven Automation Pipeline
+     * Triggered on every incoming message
+     */
+    async _processMessageAutomation(leadId, messageText, tenantId, messageId) {
+        try {
+            // Step 1: Intent Detection
+            const intentService = require('./ai/intentDetectionService');
+            const intent = await intentService.detectIntent(messageText);
+
+            // Store intent
+            await db.query(
+                `UPDATE messages SET intent = $1, emotional_tone = $2 WHERE id = $3`,
+                [intent.intent, intent.emotionalTone, messageId]
+            );
+
+            // Step 2: Update Lead Score
+            const scoringService = require('./ai/scoringService');
+            const newScore = await scoringService.updateLeadScore(leadId);
+
+            // Step 3: Check for Escalation
+            const escalationService = require('./routing/escalationService');
+            const shouldEscalate = await escalationService.checkEscalation(leadId, {
+                aiConfidence: intent.confidence,
+                messageText,
+                objectionCount: intent.hasObjection ? 1 : 0
+            });
+
+            if (shouldEscalate) {
+                logger.info({ leadId }, 'Lead auto-escalated');
+                return; // Escalation service handles routing
+            }
+
+            // Step 4: Route to SDR (only if not already assigned)
+            const lead = await db.query('SELECT assigned_sdr_id FROM leads WHERE id = $1', [leadId]);
+            if (!lead.rows[0].assigned_sdr_id) {
+                const routingService = require('./routing/routingService');
+                await routingService.routeLead(leadId, newScore);
+            }
+
+            // Step 5: Generate AI Response (if appropriate)
+            const backpressureService = require('./reliability/backpressureService');
+            await backpressureService.checkSystemHealth();
+
+            if (!backpressureService.shouldUseTemplatesOnly()) {
+                // AI response will be handled by existing chat flow
+                logger.info({ leadId, intent: intent.intent }, 'Message processed through automation pipeline');
+            }
+
+        } catch (error) {
+            logger.error({ err: error, leadId }, 'Automation pipeline failed');
+        }
     }
 }
 
