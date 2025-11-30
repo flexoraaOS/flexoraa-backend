@@ -73,6 +73,7 @@ app.use('/api/integrations', require('./routes/integrations'));
 app.use('/api/experiments', require('./routes/experiments'));
 app.use('/api/compliance', require('./routes/compliance'));
 app.use('/api/meta-compliance', require('./routes/meta-compliance'));
+app.use('/api/unified-identity', require('./routes/unified-identity'));
 
 // Health check with circuit breaker status
 app.get('/health', async (req, res) => {

@@ -1,118 +1,123 @@
-// Admin Routes
-// Protected by IP Whitelist and RBAC
 const express = require('express');
 const router = express.Router();
+const adminDashboardService = require('../services/admin/adminDashboardService');
+const { authenticateToken, requireRole } = require('../middleware/auth');
 const logger = require('../utils/logger');
-const db = require('../config/database');
-const { asyncHandler } = require('../middleware/errorHandler');
 
 /**
- * GET /api/admin/stats
- * System-wide statistics
+ * GET /api/admin/overview
+ * Get admin dashboard overview
+ * Frontend: /dashboard/admin-dashboard
  */
-router.get('/stats', asyncHandler(async (req, res) => {
-    const usersCount = await db.query('SELECT COUNT(*) FROM users');
-    const leadsCount = await db.query('SELECT COUNT(*) FROM leads');
-    const campaignsCount = await db.query('SELECT COUNT(*) FROM campaigns');
+router.get('/overview', authenticateToken, requireRole(['admin']), async (req, res) => {
+    try {
+        const overview = await adminDashboardService.getOverview();
 
-    res.json({
-        users: parseInt(usersCount.rows[0].count),
-        leads: parseInt(leadsCount.rows[0].count),
-        campaigns: parseInt(campaignsCount.rows[0].count),
-        uptime: process.uptime(),
-        memory: process.memoryUsage()
-    });
-}));
+        res.json({
+            success: true,
+            overview
+        });
 
-/**
- * POST /api/admin/cache/clear
- * Clear Redis cache
- */
-router.post('/cache/clear', asyncHandler(async (req, res) => {
-    const redis = require('../middleware/rateLimiter').redis;
-    await redis.flushdb();
-    logger.info('Redis cache cleared by admin');
-    res.json({ success: true, message: 'Cache cleared' });
-}));
-
-/**
- * POST /api/admin/toggles/disable-ai
- * Emergency kill-switch to disable all AI calls globally
- */
-router.post('/toggles/disable-ai', asyncHandler(async (req, res) => {
-    const { disabled } = req.body;
-    const redis = require('../middleware/rateLimiter').redis;
-
-    if (disabled) {
-        await redis.set('ai:emergency_disabled', '1');
-        logger.warn('AI emergency kill-switch ACTIVATED by admin');
-        res.json({ success: true, message: 'AI disabled globally', aiEnabled: false });
-    } else {
-        await redis.del('ai:emergency_disabled');
-        logger.info('AI emergency kill-switch DEACTIVATED by admin');
-        res.json({ success: true, message: 'AI re-enabled globally', aiEnabled: true });
+    } catch (error) {
+        logger.error({ err: error }, 'Failed to get admin overview');
+        res.status(500).json({
+            error: 'Failed to get admin overview',
+            message: error.message
+        });
     }
-}));
+});
 
 /**
- * GET /api/admin/toggles/ai-status
- * Check if AI is currently enabled or disabled
+ * GET /api/admin/tenants/:tenantId
+ * Get tenant details
  */
-router.get('/toggles/ai-status', asyncHandler(async (req, res) => {
-    const redis = require('../middleware/rateLimiter').redis;
-    const disabled = await redis.get('ai:emergency_disabled');
+router.get('/tenants/:tenantId', authenticateToken, requireRole(['admin']), async (req, res) => {
+    try {
+        const { tenantId } = req.params;
 
-    res.json({
-        aiEnabled: !disabled,
-        emergencyMode: !!disabled
-    });
-}));
+        const details = await adminDashboardService.getTenantDetails(tenantId);
 
-/**
- * POST /api/admin/users/invite
- * Invite a new user via email
- */
-router.post('/users/invite', asyncHandler(async (req, res) => {
-    const { email, role } = req.body;
-    const emailService = require('../services/emailService');
-    const crypto = require('crypto');
+        res.json({
+            success: true,
+            tenant: details
+        });
 
-    // 1. Check if user exists
-    const existing = await db.query('SELECT id FROM users WHERE email = $1', [email]);
-    if (existing.rows.length > 0) {
-        return res.status(400).json({ error: 'User already exists' });
+    } catch (error) {
+        logger.error({ err: error }, 'Failed to get tenant details');
+        res.status(500).json({
+            error: 'Failed to get tenant details',
+            message: error.message
+        });
     }
-
-    // 2. Generate invite token
-    const token = crypto.randomBytes(32).toString('hex');
-    const inviteLink = `${process.env.DOMAIN || 'http://localhost:3000'}/auth/accept-invite?token=${token}`;
-
-    // 3. Store invite (assuming an invites table exists, or just log for now)
-    // For MVP, we'll just send the link. In production, store in 'invites' table.
-    // await db.query('INSERT INTO invites ...');
-
-    // 4. Send Email
-    await emailService.sendInvitation(email, inviteLink);
-
-    res.json({ success: true, message: 'Invitation sent', inviteLink }); // Return link for testing
-}));
+});
 
 /**
- * PATCH /api/admin/users/:id/role
- * Update user role
+ * PUT /api/admin/tenants/:tenantId/status
+ * Update tenant status
  */
-router.patch('/users/:id/role', asyncHandler(async (req, res) => {
-    const { role } = req.body;
-    const { id } = req.params;
+router.put('/tenants/:tenantId/status', authenticateToken, requireRole(['admin']), async (req, res) => {
+    try {
+        const { tenantId } = req.params;
+        const { status } = req.body;
 
-    if (!['admin', 'sdr', 'manager', 'user'].includes(role)) {
-        return res.status(400).json({ error: 'Invalid role' });
+        if (!['active', 'suspended', 'inactive'].includes(status)) {
+            return res.status(400).json({ error: 'Invalid status' });
+        }
+
+        await db.query(
+            `UPDATE tenants SET status = $1, updated_at = NOW() WHERE id = $2`,
+            [status, tenantId]
+        );
+
+        res.json({
+            success: true,
+            message: `Tenant status updated to ${status}`
+        });
+
+    } catch (error) {
+        logger.error({ err: error }, 'Failed to update tenant status');
+        res.status(500).json({
+            error: 'Failed to update tenant status',
+            message: error.message
+        });
     }
+});
 
-    await db.query('UPDATE users SET role = $1 WHERE id = $2', [role, id]);
+/**
+ * POST /api/admin/tenants/:tenantId/tokens/credit
+ * Credit tokens to tenant (admin action)
+ */
+router.post('/tenants/:tenantId/tokens/credit', authenticateToken, requireRole(['admin']), async (req, res) => {
+    try {
+        const { tenantId } = req.params;
+        const { tokens, reason } = req.body;
+        const { userId } = req.user;
 
-    logger.info({ adminId: req.user.id, targetUserId: id, newRole: role }, 'User role updated');
-    res.json({ success: true });
-}));
+        if (!tokens || tokens <= 0) {
+            return res.status(400).json({ error: 'Invalid token amount' });
+        }
+
+        const tokenService = require('../services/payment/tokenService');
+        await tokenService.creditTokens(
+            tenantId,
+            tokens,
+            'admin_credit',
+            `Admin credit: ${reason || 'Manual adjustment'}`,
+            { credited_by: userId }
+        );
+
+        res.json({
+            success: true,
+            message: `Credited ${tokens} tokens to tenant`
+        });
+
+    } catch (error) {
+        logger.error({ err: error }, 'Failed to credit tokens');
+        res.status(500).json({
+            error: 'Failed to credit tokens',
+            message: error.message
+        });
+    }
+});
 
 module.exports = router;

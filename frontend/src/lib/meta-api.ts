@@ -210,22 +210,12 @@ async function triggerAIWorkflow(data: {
   platform: string;
   timestamp: Date;
 }): Promise<void> {
-  try {
-    const webhookUrl = process.env[`N8N_${data.platform.toUpperCase()}_WEBHOOK`];
-    if (!webhookUrl) {
-      console.log(`No AI webhook configured for ${data.platform}`);
-      return;
-    }
-
-    await fetch(webhookUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-
-  } catch (error) {
-    console.error(`Error triggering AI workflow for ${data.platform}:`, error);
-  }
+  // N8N removed - AI processing now happens in native backend services
+  // Messages are automatically processed by:
+  // - chatService.js (AI responses)
+  // - unifiedInboxService.js (routing)
+  // - qualificationService.js (lead qualification)
+  console.log(`Message stored for ${data.platform} - AI processing handled by backend services`);
 }
 
 /**

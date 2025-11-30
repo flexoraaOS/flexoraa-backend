@@ -186,14 +186,12 @@ async function handleMessagingEvent(pageId: string, event: MessagingEvent) {
         });
       }
 
-      // Trigger n8n workflow for AI processing
-      await triggerN8nWorkflow('facebook_message', {
+      // Process message directly (no n8n needed)
+      // AI processing happens in your backend services
+      console.log('Facebook message received and stored:', {
         userId,
-        pageId,
         senderId,
-        messageText,
-        timestamp: timestamp.toISOString(),
-        platform: 'facebook'
+        messageText
       });
 
     } else if (event.postback) {
@@ -256,14 +254,12 @@ async function handleInstagramMessage(pageId: string, messageData: InstagramMess
         });
       }
 
-      // Trigger n8n workflow for AI processing
-      await triggerN8nWorkflow('instagram_message', {
+      // Process message directly (no n8n needed)
+      // AI processing happens in your backend services
+      console.log('Instagram message received and stored:', {
         userId,
-        pageId,
         senderId: from,
-        messageText,
-        timestamp: timestamp.toISOString(),
-        platform: 'instagram'
+        messageText
       });
     }
 
@@ -331,15 +327,13 @@ async function handleWhatsAppMessage(phoneNumberId: string, messageData: WhatsAp
           .eq('id', existingLead.id);
       }
 
-      // Trigger n8n workflow for AI processing
-      await triggerN8nWorkflow('whatsapp_message', {
+      // Process message directly (no n8n needed)
+      // AI processing happens in your backend services
+      console.log('WhatsApp message received and stored:', {
         userId,
-        phoneNumberId,
         senderId: from,
         contactName,
-        messageText,
-        timestamp: timestamp.toISOString(),
-        platform: 'whatsapp'
+        messageText
       });
     }
 
@@ -348,36 +342,11 @@ async function handleWhatsAppMessage(phoneNumberId: string, messageData: WhatsAp
   }
 }
 
-interface N8nWorkflowPayload {
-  userId: string;
-  pageId?: string;
-  phoneNumberId?: string;
-  senderId: string;
-  contactName?: string;
-  messageText: string;
-  timestamp: string;
-  platform: string;
-}
-
-async function triggerN8nWorkflow(workflowType: string, payload: N8nWorkflowPayload) {
-  try {
-    const webhookUrl = process.env[`N8N_${workflowType.toUpperCase()}_WEBHOOK`];
-    if (!webhookUrl) {
-      console.log(`No webhook URL configured for ${workflowType}`);
-      return;
-    }
-
-    const response = await fetch(webhookUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      console.error(`Failed to trigger ${workflowType} workflow:`, response.status);
-    } else {
+// N8N removed - all processing now happens in native Node.js services:
+// - chatService.js (AI processing)
+// - unifiedInboxService.js (message routing)
+// - scoringService.js (lead scoring)
+// - qualificationService.js (lead qualification)
       console.log(`Successfully triggered ${workflowType} workflow`);
     }
   } catch (error) {

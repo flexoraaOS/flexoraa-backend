@@ -98,6 +98,8 @@ app.use(globalLimiter);
 
 // Import all routes
 const leadsRouter = require('./routes/leads');
+const leadsImportRouter = require('./routes/leads-import');
+const analyticsRouter = require('./routes/analytics');
 const adminRouter = require('./routes/admin');
 const scoringRouter = require('./routes/scoring');
 const bookingsRouter = require('./routes/bookings');
@@ -109,6 +111,7 @@ const integrationsRouter = require('./routes/integrations');
 const experimentsRouter = require('./routes/experiments');
 const complianceRouter = require('./routes/compliance');
 const metaComplianceRouter = require('./routes/meta-compliance');
+const unifiedIdentityRouter = require('./routes/unified-identity');
 const ipWhitelist = require('./middleware/ipWhitelist');
 
 // Routes
@@ -116,6 +119,8 @@ app.use('/health', healthRouter);
 app.use('/api/webhooks', webhooksRouter);
 app.use('/api/campaigns', campaignsRouter);
 app.use('/api/leads', leadsRouter);
+app.use('/api/leads/import', leadsImportRouter);
+app.use('/api/analytics', analyticsRouter);
 app.use('/api/scoring', scoringRouter);
 app.use('/api/bookings', bookingsRouter);
 app.use('/api/audit', auditRouter);
@@ -126,6 +131,7 @@ app.use('/api/integrations', integrationsRouter);
 app.use('/api/experiments', experimentsRouter);
 app.use('/api/compliance', complianceRouter);
 app.use('/api/meta-compliance', metaComplianceRouter);
+app.use('/api/unified-identity', unifiedIdentityRouter);
 
 // Admin Routes (Protected)
 app.use('/api/admin', ipWhitelist(), adminRouter);

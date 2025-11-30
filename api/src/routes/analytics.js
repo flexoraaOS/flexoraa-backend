@@ -1,44 +1,178 @@
 const express = require('express');
 const router = express.Router();
-const { verifyJWT } = require('../middleware/auth');
-const { asyncHandler } = require('../middleware/errorHandler');
-const analyticsService = require('../services/analyticsService');
+const campaignAnalyticsService = require('../services/analytics/campaignAnalyticsService');
+const { authenticateToken, requireRole } = require('../middleware/auth');
+const logger = require('../utils/logger');
 
 /**
- * GET /api/analytics/roi
- * Campaign ROI and Conversion Rates
+ * GET /api/analytics/campaigns
+ * Get campaign analytics
+ * Frontend: /dashboard/campaign-intelligence
  */
-router.get('/roi', verifyJWT, asyncHandler(async (req, res) => {
-    const metrics = await analyticsService.getCampaignROI(req.user.tenant_id);
-    res.json(metrics);
-}));
+router.get('/campaigns', authenticateToken, async (req, res) => {
+    try {
+        const { tenantId } = req.user;
+        const { from, to } = req.query;
+
+        const analytics = await campaignAnalyticsService.getCampaignAnalytics(
+            tenantId,
+            { from, to }
+        );
+
+        res.json({
+            success: true,
+            analytics
+        });
+
+    } catch (error) {
+        logger.error({ err: error }, 'Failed to get campaign analytics');
+        res.status(500).json({
+            error: 'Failed to get campaign analytics',
+            message: error.message
+        });
+    }
+});
+
+/**
+ * GET /api/analytics/sdr-performance
+ * Get SDR performance analytics
+ * Frontend: SDR Leaderboard component
+ */
+router.get('/sdr-performance', authenticateToken, async (req, res) => {
+    try {
+        const { tenantId } = req.user;
+        const { from, to } = req.query;
+
+        const performance = await campaignAnalyticsService.getSDRPerformance(
+            tenantId,
+            { from, to }
+        );
+
+        res.json({
+            success: true,
+            performance
+        });
+
+    } catch (error) {
+        logger.error({ err: error }, 'Failed to get SDR performance');
+        res.status(500).json({
+            error: 'Failed to get SDR performance',
+            message: error.message
+        });
+    }
+});
+
+/**
+ * GET /api/analytics/overview
+ * Get high-level analytics overview
+ */
+router.get('/overview', authenticateToken, async (req, res) => {
+    try {
+        const { tenantId } = req.user;
+        const { from, to } = req.query;
+
+        const analytics = await campaignAnalyticsService.getCampaignAnalytics(
+            tenantId,
+            { from, to }
+        );
+
+        // Return just the overview section
+        res.json({
+            success: true,
+            overview: analytics.overview
+        });
+
+    } catch (error) {
+        logger.error({ err: error }, 'Failed to get analytics overview');
+        res.status(500).json({
+            error: 'Failed to get analytics overview',
+            message: error.message
+        });
+    }
+});
 
 /**
  * GET /api/analytics/funnel
- * Lead Conversion Funnel
+ * Get conversion funnel data
  */
-router.get('/funnel', verifyJWT, asyncHandler(async (req, res) => {
-    const funnel = await analyticsService.getConversionFunnel(req.user.tenant_id);
-    res.json(funnel);
-}));
+router.get('/funnel', authenticateToken, async (req, res) => {
+    try {
+        const { tenantId } = req.user;
+        const { from, to } = req.query;
+
+        const analytics = await campaignAnalyticsService.getCampaignAnalytics(
+            tenantId,
+            { from, to }
+        );
+
+        res.json({
+            success: true,
+            funnel: analytics.conversion
+        });
+
+    } catch (error) {
+        logger.error({ err: error }, 'Failed to get funnel data');
+        res.status(500).json({
+            error: 'Failed to get funnel data',
+            message: error.message
+        });
+    }
+});
 
 /**
- * GET /api/analytics/leaderboard
- * Team Performance Leaderboard
+ * GET /api/analytics/timeline
+ * Get timeline data for charts
  */
-router.get('/leaderboard', verifyJWT, asyncHandler(async (req, res) => {
-    const leaderboard = await analyticsService.getTeamLeaderboard(req.user.tenant_id);
-    res.json(leaderboard);
-}));
+router.get('/timeline', authenticateToken, async (req, res) => {
+    try {
+        const { tenantId } = req.user;
+        const { from, to } = req.query;
+
+        const analytics = await campaignAnalyticsService.getCampaignAnalytics(
+            tenantId,
+            { from, to }
+        );
+
+        res.json({
+            success: true,
+            timeline: analytics.timeline
+        });
+
+    } catch (error) {
+        logger.error({ err: error }, 'Failed to get timeline data');
+        res.status(500).json({
+            error: 'Failed to get timeline data',
+            message: error.message
+        });
+    }
+});
 
 /**
- * GET /api/analytics/messages
- * Message Volume Trends
+ * GET /api/analytics/channels
+ * Get channel performance data
  */
-router.get('/messages', verifyJWT, asyncHandler(async (req, res) => {
-    const { days } = req.query;
-    const trends = await analyticsService.getMessageVolume(req.user.tenant_id, parseInt(days) || 30);
-    res.json(trends);
-}));
+router.get('/channels', authenticateToken, async (req, res) => {
+    try {
+        const { tenantId } = req.user;
+        const { from, to } = req.query;
+
+        const analytics = await campaignAnalyticsService.getCampaignAnalytics(
+            tenantId,
+            { from, to }
+        );
+
+        res.json({
+            success: true,
+            channels: analytics.channels
+        });
+
+    } catch (error) {
+        logger.error({ err: error }, 'Failed to get channel performance');
+        res.status(500).json({
+            error: 'Failed to get channel performance',
+            message: error.message
+        });
+    }
+});
 
 module.exports = router;
