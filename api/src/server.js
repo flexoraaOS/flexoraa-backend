@@ -67,6 +67,12 @@ app.use('/api/subscriptions', require('./routes/subscriptions'));
 app.use('/api/analytics', require('./routes/analytics'));
 app.use('/api/billing', require('./routes/billing'));
 app.use('/api/appointments', require('./routes/appointments'));
+app.use('/api/tokens', require('./routes/tokens'));
+app.use('/api/monitoring', require('./routes/monitoring'));
+app.use('/api/integrations', require('./routes/integrations'));
+app.use('/api/experiments', require('./routes/experiments'));
+app.use('/api/compliance', require('./routes/compliance'));
+app.use('/api/meta-compliance', require('./routes/meta-compliance'));
 
 // Health check with circuit breaker status
 app.get('/health', async (req, res) => {
@@ -106,6 +112,21 @@ const PORT = process.env.PORT || 3000;
 // GRACEFUL SHUTDOWN (PR #22)
 const logger = require('./utils/logger');
 const db = require('./config/database');
+
+// Initialize background services
+const serviceInitializer = require('./services/serviceInitializer');
+
+const server = app.listen(PORT, async () => {
+    logger.info(`🚀 Flexoraa Backend API listening on port ${PORT}`);
+    logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
+    
+    // Initialize all background services
+    try {
+        await serviceInitializer.initializeAll();
+    } catch (error) {
+        logger.error({ err: error }, 'Failed to initialize services');
+    }
+});
 
 async function gracefulShutdown(signal) {
     logger.info(`${signal} received, starting graceful shutdown`);

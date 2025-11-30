@@ -106,10 +106,78 @@ class AppointmentService {
     }
 
     async _createCalendarEvent(sdrId, dateTime, leadId) {
-        // TODO: Integrate with Google Calendar / Outlook API
-        // For now, just log
-        logger.info({ sdrId, dateTime, leadId }, 'Calendar event created (mock)');
-        return `cal_${Date.now()}`;
+        try {
+            // Get lead details
+            const leadRes = await db.query(
+                'SELECT name, phone_number, email FROM leads WHERE id = $1',
+                [leadId]
+            );
+            const lead = leadRes.rows[0];
+
+            // Use Calendly integration
+            const calendlyService = require('./calendlyIntegrationService');
+            
+            // Get SDR's Calendly event type URI
+            const sdrRes = await db.query(
+                'SELECT calendly_event_type_uri FROM users WHERE id = $1',
+                [sdrId]
+            );
+
+            if (!sdrRes.rows[0]?.calendly_event_type_uri) {
+                logger.warn({ sdrId }, 'SDR Calendly not configured');
+                return null;
+            }
+
+            const eventTypeUri = sdrRes.rows[0].calendly_event_type_uri;
+
+            // Create Calendly invitee
+            const result = await calendlyService.createInvitee(eventTypeUri, {
+                email: lead.email || `lead_${leadId}@temp.flexoraa.com`,
+                name: lead.name || 'Lead',
+                phone: lead.phone_number,
+                startTime: dateTime.toISOString()
+            });
+
+            if (result) {
+                // Send confirmation email via Gmail
+                await this._sendAppointmentConfirmation(lead, result.scheduledAt, result.joinUrl);
+                return result.eventUri;
+            }
+
+            return null;
+
+        } catch (error) {
+            logger.error({ err: error, sdrId, leadId }, 'Calendly event creation failed');
+            return null;
+        }
+    }
+
+    async _sendAppointmentConfirmation(lead, scheduledAt, joinUrl) {
+        try {
+            const emailService = require('../emailService');
+            
+            await emailService.sendEmail({
+                to: lead.email || lead.phone_number,
+                subject: '✅ Appointment Confirmed - Flexoraa',
+                html: `
+                    <h2>Your Appointment is Confirmed!</h2>
+                    <p>Hi ${lead.name || 'there'},</p>
+                    <p>Your appointment has been scheduled for:</p>
+                    <p><strong>${new Date(scheduledAt).toLocaleString('en-IN', { 
+                        dateStyle: 'full', 
+                        timeStyle: 'short',
+                        timeZone: 'Asia/Kolkata'
+                    })}</strong></p>
+                    ${joinUrl ? `<p><a href="${joinUrl}">Join Meeting</a></p>` : ''}
+                    <p>We look forward to speaking with you!</p>
+                    <p>Best regards,<br>Flexoraa Team</p>
+                `
+            });
+
+            logger.info({ leadEmail: lead.email }, 'Appointment confirmation sent');
+        } catch (error) {
+            logger.error({ err: error }, 'Failed to send confirmation email');
+        }
     }
 
     async _scheduleReminders(appointmentId, dateTime, leadId) {

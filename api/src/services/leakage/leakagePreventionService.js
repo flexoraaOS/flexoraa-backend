@@ -84,37 +84,126 @@ class LeakagePreventionService {
     }
 
     async _aiReEngage(leadId) {
-        // Generate AI follow-up message
-        const chatService = require('../ai/chatService');
-        const lead = await db.query('SELECT * FROM leads WHERE id = $1', [leadId]);
+        try {
+            const lead = await db.query('SELECT * FROM leads WHERE id = $1', [leadId]);
+            const leadData = lead.rows[0];
 
-        const context = {
-            name: lead.rows[0].name,
-            status: lead.rows[0].status
-        };
+            // Generate contextual follow-up
+            const geminiService = require('../ai/geminiService');
+            const psychologyService = require('../ai/psychologyService');
 
-        const followUpMessage = await chatService.generateAIReply({
-            userMessage: '[System: This is a follow-up for an unreplied lead]',
-            phoneNumber: lead.rows[0].phone_number,
-            leadContext: context,
-            campaignContext: {}
-        });
+            const psychologyPrompt = psychologyService.getPersuasionStrategy(leadData);
+            
+            const prompt = `Generate a brief, friendly follow-up message for a lead who hasn't responded.
+Lead name: ${leadData.name || 'there'}
+Last interaction: They showed interest but haven't replied yet.
 
-        // Send via WhatsApp (or appropriate channel)
-        // TODO: Integrate with whatsappService
-        logger.info({ leadId, followUpMessage }, 'AI re-engagement message generated');
+${psychologyPrompt}
+
+Keep it under 160 characters, warm and non-pushy.`;
+
+            const followUpMessage = await geminiService.generateText(prompt, { maxTokens: 100 });
+
+            // Send via appropriate channel
+            const sessionWindowService = require('../whatsapp/sessionWindowService');
+            await sessionWindowService.sendMessage(leadId, followUpMessage);
+
+            // Deduct tokens
+            const tokenService = require('../payment/tokenService');
+            await tokenService.deductTokens(
+                leadData.tenant_id,
+                2,
+                'ai_reengagement',
+                'Leakage prevention re-engagement',
+                leadId
+            );
+
+            logger.info({ leadId, followUpMessage }, 'AI re-engagement sent');
+        } catch (error) {
+            logger.error({ err: error, leadId }, 'AI re-engagement failed');
+        }
     }
 
     async _reassignLead(leadId, tenantId) {
-        const routingService = require('../routing/routingService');
-        const lead = await db.query('SELECT score FROM leads WHERE id = $1', [leadId]);
-        await routingService.routeLead(leadId, lead.rows[0].score);
+        try {
+            const routingService = require('../routing/routingService');
+            const lead = await db.query('SELECT score, assigned_sdr_id FROM leads WHERE id = $1', [leadId]);
+            const oldSDR = lead.rows[0].assigned_sdr_id;
+            
+            // Route to different SDR
+            await routingService.routeLead(leadId, lead.rows[0].score);
+
+            // Log reassignment
+            await db.query(
+                `INSERT INTO lead_reassignment_log (lead_id, old_sdr_id, reason, reassigned_at)
+                 VALUES ($1, $2, 'leakage_prevention', NOW())`,
+                [leadId, oldSDR]
+            );
+
+            logger.info({ leadId, oldSDR }, 'Lead reassigned due to leakage');
+        } catch (error) {
+            logger.error({ err: error, leadId }, 'Lead reassignment failed');
+        }
     }
 
     async _alertSDR(sdrId, leadId, priority) {
-        // Send urgent notification
-        // TODO: SMS/Email/Push
-        logger.warn({ sdrId, leadId, priority }, 'SDR alerted about lead leakage');
+        try {
+            // Get SDR details
+            const sdrRes = await db.query(
+                'SELECT email, phone_number FROM users WHERE id = $1',
+                [sdrId]
+            );
+
+            if (sdrRes.rows.length === 0) return;
+
+            const sdr = sdrRes.rows[0];
+            const emailService = require('../emailService');
+
+            // Send email alert
+            await emailService.sendEmail({
+                to: sdr.email,
+                subject: `🚨 ${priority.toUpperCase()}: Lead Requires Immediate Attention`,
+                html: `
+                    <h2>Lead Leakage Alert</h2>
+                    <p>A ${priority} priority lead has not received a response for over 30 minutes.</p>
+                    <p><strong>Lead ID:</strong> ${leadId}</p>
+                    <p><strong>Action Required:</strong> Respond within 10 minutes to prevent reassignment.</p>
+                    <p><a href="${process.env.FRONTEND_URL}/dashboard/leads/${leadId}">View Lead</a></p>
+                `
+            });
+
+            // Create in-app notification
+            await db.query(
+                `INSERT INTO notifications (user_id, type, title, message, priority, reference_id)
+                 VALUES ($1, 'lead_leakage', 'Lead Requires Response', 'Unreplied lead for 30+ minutes', $2, $3)`,
+                [sdrId, priority, leadId]
+            );
+
+            logger.info({ sdrId, leadId, priority }, 'SDR alerted about lead leakage');
+        } catch (error) {
+            logger.error({ err: error, sdrId, leadId }, 'Failed to alert SDR');
+        }
+    }
+
+    /**
+     * Get leakage statistics for monitoring
+     */
+    async getLeakageStats(tenantId, days = 7) {
+        const result = await db.query(
+            `SELECT 
+                DATE(detected_at) as date,
+                action,
+                COUNT(*) as count
+             FROM lead_leakage_events lle
+             JOIN leads l ON l.id = lle.lead_id
+             WHERE l.tenant_id = $1 
+               AND lle.detected_at > NOW() - INTERVAL '${days} days'
+             GROUP BY DATE(detected_at), action
+             ORDER BY date DESC`,
+            [tenantId]
+        );
+
+        return result.rows;
     }
 }
 

@@ -1,98 +1,199 @@
+// Razorpay Payment Service
 const Razorpay = require('razorpay');
 const crypto = require('crypto');
+const db = require('../../config/database');
 const logger = require('../../utils/logger');
+const tokenService = require('./tokenService');
 const { AppError } = require('../../middleware/errorHandler');
 
 class RazorpayService {
     constructor() {
-        if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
-            this.instance = new Razorpay({
-                key_id: process.env.RAZORPAY_KEY_ID,
-                key_secret: process.env.RAZORPAY_KEY_SECRET
-            });
-        } else {
-            logger.warn('Razorpay credentials missing. Payment features will fail.');
-        }
+        this.razorpay = new Razorpay({
+            key_id: process.env.RAZORPAY_KEY_ID,
+            key_secret: process.env.RAZORPAY_KEY_SECRET
+        });
+
+        // Token pack pricing (as per PRD)
+        this.tokenPacks = {
+            '100': { tokens: 100, price: 5000, discount: 0 }, // ₹50 = $0.50/token
+            '500': { tokens: 500, price: 20000, discount: 20 }, // ₹200 = $0.40/token
+            '1000': { tokens: 1000, price: 35000, discount: 30 }, // ₹350 = $0.35/token
+            '5000': { tokens: 5000, price: 150000, discount: 40 } // ₹1500 = $0.30/token
+        };
     }
 
     /**
-     * Create a subscription
-     * @param {string} planId - Razorpay Plan ID
-     * @param {number} totalCount - Number of billing cycles
+     * Create Razorpay order for token top-up
      */
-    async createSubscription(planId, totalCount = 120) {
+    async createTokenOrder(tenantId, tokenPackSize) {
         try {
-            const subscription = await this.instance.subscriptions.create({
-                plan_id: planId,
-                total_count: totalCount,
-                quantity: 1,
-                customer_notify: 1
+            const pack = this.tokenPacks[tokenPackSize];
+            if (!pack) {
+                throw new AppError('Invalid token pack size', 400);
+            }
+
+            // Create Razorpay order
+            const order = await this.razorpay.orders.create({
+                amount: pack.price, // Amount in paise (₹50 = 5000 paise)
+                currency: 'INR',
+                receipt: `token_${tenantId}_${Date.now()}`,
+                notes: {
+                    tenant_id: tenantId,
+                    token_pack: tokenPackSize,
+                    tokens: pack.tokens
+                }
             });
-            return subscription;
+
+            // Store order in database
+            await db.query(
+                `INSERT INTO payment_orders (
+                    id, tenant_id, order_type, amount, currency, 
+                    status, razorpay_order_id, metadata
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+                [
+                    crypto.randomUUID(),
+                    tenantId,
+                    'token_topup',
+                    pack.price / 100, // Store in rupees
+                    'INR',
+                    'created',
+                    order.id,
+                    JSON.stringify({ token_pack: tokenPackSize, tokens: pack.tokens })
+                ]
+            );
+
+            logger.info({ tenantId, orderId: order.id, tokens: pack.tokens }, 'Token order created');
+
+            return {
+                orderId: order.id,
+                amount: pack.price,
+                currency: 'INR',
+                tokens: pack.tokens,
+                discount: pack.discount
+            };
+
         } catch (error) {
-            logger.error({ err: error }, 'Razorpay Create Subscription Error');
-            throw new AppError('Failed to create subscription', 500);
+            logger.error({ err: error, tenantId }, 'Failed to create token order');
+            throw error;
         }
     }
 
     /**
-     * Cancel a subscription
-     * @param {string} subscriptionId 
+     * Verify Razorpay payment signature
      */
-    async cancelSubscription(subscriptionId) {
-        try {
-            const response = await this.instance.subscriptions.cancel(subscriptionId);
-            return response;
-        } catch (error) {
-            logger.error({ err: error }, 'Razorpay Cancel Subscription Error');
-            throw new AppError('Failed to cancel subscription', 500);
-        }
-    }
-
-    /**
-     * Create a Razorpay Order (for Token Top-up)
-     * @param {number} amount - Amount in smallest currency unit (paise)
-     * @param {string} currency - INR
-     * @param {object} notes - Metadata
-     */
-    async createOrder(amount, currency = 'INR', notes = {}) {
-        try {
-            const order = await this.instance.orders.create({
-                amount,
-                currency,
-                notes
-            });
-            return order;
-        } catch (error) {
-            logger.error({ err: error }, 'Razorpay Create Order Error');
-            throw new AppError('Failed to create payment order', 500);
-        }
-    }
-
-    /**
-     * Verify webhook signature
-     * @param {string} body - Raw request body
-     * @param {string} signature - X-Razorpay-Signature header
-     */
-    verifyWebhookSignature(body, signature) {
+    verifyPaymentSignature(orderId, paymentId, signature) {
+        const body = orderId + '|' + paymentId;
         const expectedSignature = crypto
-            .createHmac('sha256', process.env.RAZORPAY_WEBHOOK_SECRET)
+            .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
             .update(body)
             .digest('hex');
 
-        return expectedSignature === signature;
+        return crypto.timingSafeEqual(
+            Buffer.from(expectedSignature),
+            Buffer.from(signature)
+        );
     }
 
     /**
-     * Fetch invoice details
+     * Process successful payment and credit tokens
      */
-    async fetchInvoice(invoiceId) {
+    async processPaymentSuccess(paymentId, orderId, signature) {
+        const client = await db.connect();
         try {
-            return await this.instance.invoices.fetch(invoiceId);
+            await client.query('BEGIN');
+
+            // Verify signature
+            if (!this.verifyPaymentSignature(orderId, paymentId, signature)) {
+                throw new AppError('Invalid payment signature', 400);
+            }
+
+            // Get order details
+            const orderRes = await client.query(
+                'SELECT * FROM payment_orders WHERE razorpay_order_id = $1 FOR UPDATE',
+                [orderId]
+            );
+
+            if (orderRes.rows.length === 0) {
+                throw new AppError('Order not found', 404);
+            }
+
+            const order = orderRes.rows[0];
+
+            if (order.status === 'completed') {
+                logger.warn({ orderId }, 'Payment already processed');
+                return { success: true, message: 'Already processed' };
+            }
+
+            // Update order status
+            await client.query(
+                `UPDATE payment_orders 
+                 SET status = 'completed', 
+                     razorpay_payment_id = $1,
+                     completed_at = NOW()
+                 WHERE razorpay_order_id = $2`,
+                [paymentId, orderId]
+            );
+
+            // Credit tokens
+            const tokens = order.metadata.tokens;
+            await tokenService.topUpTokens(
+                order.tenant_id,
+                tokens,
+                paymentId,
+                `Token Pack Purchase: ${tokens} tokens`
+            );
+
+            await client.query('COMMIT');
+
+            logger.info({ 
+                tenantId: order.tenant_id, 
+                paymentId, 
+                tokens 
+            }, 'Payment processed and tokens credited');
+
+            return {
+                success: true,
+                tokens,
+                tenantId: order.tenant_id
+            };
+
         } catch (error) {
-            logger.error({ err: error }, 'Razorpay Fetch Invoice Error');
-            throw new AppError('Failed to fetch invoice', 500);
+            await client.query('ROLLBACK');
+            logger.error({ err: error, paymentId, orderId }, 'Payment processing failed');
+            throw error;
+        } finally {
+            client.release();
         }
+    }
+
+    /**
+     * Handle payment failure
+     */
+    async processPaymentFailure(orderId, reason) {
+        await db.query(
+            `UPDATE payment_orders 
+             SET status = 'failed', 
+                 metadata = metadata || jsonb_build_object('failure_reason', $2)
+             WHERE razorpay_order_id = $1`,
+            [orderId, reason]
+        );
+
+        logger.warn({ orderId, reason }, 'Payment failed');
+    }
+
+    /**
+     * Get payment history for tenant
+     */
+    async getPaymentHistory(tenantId, limit = 50) {
+        const result = await db.query(
+            `SELECT * FROM payment_orders 
+             WHERE tenant_id = $1 
+             ORDER BY created_at DESC 
+             LIMIT $2`,
+            [tenantId, limit]
+        );
+
+        return result.rows;
     }
 }
 

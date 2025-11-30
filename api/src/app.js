@@ -96,33 +96,36 @@ app.use((req, res, next) => {
 // Global rate limiting
 app.use(globalLimiter);
 
-// Routes
-app.use('/health', healthRouter);
-app.use('/api/webhooks', webhooksRouter);
-app.use('/api/campaigns', campaignsRouter);
+// Import all routes
 const leadsRouter = require('./routes/leads');
 const adminRouter = require('./routes/admin');
 const scoringRouter = require('./routes/scoring');
 const bookingsRouter = require('./routes/bookings');
 const auditRouter = require('./routes/audit');
 const assignmentsRouter = require('./routes/assignments');
+const tokensRouter = require('./routes/tokens');
+const monitoringRouter = require('./routes/monitoring');
+const integrationsRouter = require('./routes/integrations');
+const experimentsRouter = require('./routes/experiments');
+const complianceRouter = require('./routes/compliance');
+const metaComplianceRouter = require('./routes/meta-compliance');
 const ipWhitelist = require('./middleware/ipWhitelist');
-
-// ... (existing code)
 
 // Routes
 app.use('/health', healthRouter);
 app.use('/api/webhooks', webhooksRouter);
 app.use('/api/campaigns', campaignsRouter);
 app.use('/api/leads', leadsRouter);
-
-// Scoring Routes
 app.use('/api/scoring', scoringRouter);
-
-// Bookings & Audit
 app.use('/api/bookings', bookingsRouter);
 app.use('/api/audit', auditRouter);
 app.use('/api/assignments', assignmentsRouter);
+app.use('/api/tokens', tokensRouter);
+app.use('/api/monitoring', monitoringRouter);
+app.use('/api/integrations', integrationsRouter);
+app.use('/api/experiments', experimentsRouter);
+app.use('/api/compliance', complianceRouter);
+app.use('/api/meta-compliance', metaComplianceRouter);
 
 // Admin Routes (Protected)
 app.use('/api/admin', ipWhitelist(), adminRouter);
